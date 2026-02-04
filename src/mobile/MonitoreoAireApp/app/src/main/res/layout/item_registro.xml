@@ -1,0 +1,34 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content"
+    android:orientation="vertical"
+    android:padding="10dp"
+    android:background="@android:color/white"
+    android:elevation="2dp">
+
+    <TextView
+        android:id="@+id/txtEventoTitulo"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:text="CO₂ alto en Caja 1"
+        android:textStyle="bold"
+        android:textSize="14sp"
+        android:textColor="#D32F2F" />
+
+    <TextView
+        android:id="@+id/txtEventoDetalle"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:text="1320 ppm · Umbral 1000 · Ubicación: Caja 1"
+        android:textSize="13sp"
+        android:textColor="#455A64" />
+
+    <TextView
+        android:id="@+id/txtEventoFecha"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:text="2025-12-01 10:42"
+        android:textSize="12sp"
+        android:textColor="#78909C" />
+</LinearLayout>

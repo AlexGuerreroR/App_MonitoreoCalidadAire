@@ -1,0 +1,27 @@
+# Android / Gradle
+.gradle/
+**/build/
+.idea/
+*.iml
+local.properties
+
+# Logs
+*.log
+
+# Keystores
+*.jks
+*.keystore
+
+# Arduino / PlatformIO (si aplica)
+.pio/
+*.bin
+*.hex
+*.elf
+
+# Config local (no subir)
+config/config.local
+config/backend.env
+
+# OS
+.DS_Store
+Thumbs.db

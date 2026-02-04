@@ -1,0 +1,31 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:orientation="vertical"
+    android:padding="16dp"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content">
+
+    <TextView
+        android:id="@+id/txtInfoToken"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:text="Token:"
+        android:textSize="12sp"
+        android:layout_marginBottom="8dp" />
+
+    <EditText
+        android:id="@+id/edtSsidConfig"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:hint="SSID de la red WiFi"
+        android:inputType="text" />
+
+    <EditText
+        android:id="@+id/edtPassConfig"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:hint="Contraseña WiFi"
+        android:inputType="textPassword"
+        android:layout_marginTop="8dp" />
+
+</LinearLayout>

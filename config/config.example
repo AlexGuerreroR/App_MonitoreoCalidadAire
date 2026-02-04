@@ -1,0 +1,37 @@
+# Monitoreo Calidad de Aire - Configuración (EJEMPLO)
+# Crea el archivo real como: config/config.local (NO se sube al repo)
+
+[esp32_ap]
+ssid=SensorAire-ESP32
+password=12345678
+ap_ip=192.168.4.1
+
+[esp32_http]
+port=80
+endpoint_root=/
+endpoint_config=/config
+endpoint_factory_reset=/factory_reset
+
+# Provisioning desde la app (POST):
+# URL: http://192.168.4.1/config
+# Campos:
+#   ssid=<wifi_local>
+#   password=<clave_wifi>
+#   token=<token_dispositivo>
+#   serverUrl=<url_backend>
+
+[backend]
+server_url_example=http://192.168.1.100/monitoreo_aire/api/telemetry.php
+
+[timing]
+send_interval_ms=2000
+sample_interval_ms=10000
+
+[thresholds]
+mq135_alarm_raw=800
+
+[calibration]
+hum_scale=1.0
+hum_offset=-22.0
+mq135_basal_raw=200
+mq135_malo_raw=800
