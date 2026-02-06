@@ -9,6 +9,12 @@ import androidx.fragment.app.Fragment
 class HomeActivity : AppCompatActivity() {
 
     var idUsuario: Int = 0
+
+    // CAMBIO: este id representa el dispositivo actualmente seleccionado en el Home (Spinner).
+    // Lo actualiza HomeFragment llamando a setDispositivoSeleccionado(id).
+    var idDispositivo: Int = 0
+        private set
+
     private lateinit var txtBienvenida: TextView
     private lateinit var bottomNav: BottomNavigationView
 
@@ -36,6 +42,13 @@ class HomeActivity : AppCompatActivity() {
             }
             true
         }
+    }
+
+    // CAMBIO método para que los fragments HomeFragmen, DispositivosFragment informen
+    // cuál dispositivo está seleccionado. ConfigFragment leerá este valor para cargar/guardar
+    // umbrales por dispositivo.
+    fun setDispositivoSeleccionado(id: Int) {
+        idDispositivo = if (id > 0) id else 0
     }
 
     private fun abrirFragment(fragment: Fragment) {

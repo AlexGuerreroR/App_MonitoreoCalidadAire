@@ -2,7 +2,7 @@ package com.example.monitoreoaire
 
 object ApiConfig {
     // Mientras pruebas con el emulador y XAMPP:
-    const val BASE_URL = "http://192.168.0.100/WSMONITOREO/"
+    const val BASE_URL = "http://192.168.0.102/WSMONITOREO/"
     // luego lo cambias por tu dominio o IP pública 192.168.0.108
 
     // crear dispositivo (genera token)
@@ -10,7 +10,7 @@ object ApiConfig {
 
     // Para la ESP32: IP REAL de tu PC o servidor, accesible en la red
     // Ejemplo: si tu PC con XAMPP tiene IP 192.168.1.50
-    const val SERVER_ESP_URL = "http://192.168.0.100/WSMONITOREO/insertar_lectura.php"
+    const val SERVER_ESP_URL = "http://192.168.0.102/WSMONITOREO/insertar_lectura.php"
 
     // PARA CONFIGURAR LA ESP32 EN MODO AP:
     const val ESP_AP_CONFIG_URL = "http://192.168.4.1/config"

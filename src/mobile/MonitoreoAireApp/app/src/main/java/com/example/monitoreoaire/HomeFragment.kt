@@ -5,6 +5,7 @@ import android.graphics.Color
 import android.os.Bundle
 import android.os.Handler
 import android.os.Looper
+import android.view.Gravity
 import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
@@ -24,8 +25,6 @@ import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
 import kotlin.math.roundToInt
-import android.view.Gravity
-
 
 class HomeFragment : Fragment() {
 
@@ -63,6 +62,8 @@ class HomeFragment : Fragment() {
 
     private val idUsuario: Int
         get() = (activity as? HomeActivity)?.idUsuario ?: 0
+    private val idDispositivo: Int
+        get() = (activity as? HomeActivity)?.idDispositivo ?: 0
 
     override fun onAttach(context: Context) {
         super.onAttach(context)
@@ -134,6 +135,11 @@ class HomeFragment : Fragment() {
                 id: Long
             ) {
                 if (position !in tokensDispositivos.indices) return
+                if (position !in idsDispositivos.indices) return
+
+                // CAMBIO: guardar el ID del dispositivo seleccionado en la HomeActivity
+                val idSeleccionado = idsDispositivos[position]
+                (activity as? HomeActivity)?.setDispositivoSeleccionado(idSeleccionado)
 
                 val token = tokensDispositivos[position]
                 selectedToken = token
@@ -146,7 +152,10 @@ class HomeFragment : Fragment() {
                 }
             }
 
-            override fun onNothingSelected(parent: AdapterView<*>?) {}
+            override fun onNothingSelected(parent: AdapterView<*>?) {
+                // CAMBIO: si no hay selección, dejar dispositivo en 0
+                (activity as? HomeActivity)?.setDispositivoSeleccionado(0)
+            }
         }
 
         return v
@@ -254,6 +263,8 @@ class HomeFragment : Fragment() {
 
                 if (nombresDispositivos.isEmpty()) {
                     nombresDispositivos.add("Sin dispositivos")
+                    // CAMBIO: sin dispositivos reales, dejar el seleccionado en 0
+                    (activity as? HomeActivity)?.setDispositivoSeleccionado(0)
                 }
 
                 val adapter = ArrayAdapter(
@@ -263,6 +274,11 @@ class HomeFragment : Fragment() {
                 )
                 adapter.setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item)
                 spDispositivos.adapter = adapter
+
+                // CAMBIO: al cargar por primera vez, fijar el primer dispositivo como seleccionado
+                if (idsDispositivos.isNotEmpty()) {
+                    (activity as? HomeActivity)?.setDispositivoSeleccionado(idsDispositivos[0])
+                }
 
                 if (tokensDispositivos.isNotEmpty()) {
                     val firstToken = tokensDispositivos[0]
@@ -332,7 +348,11 @@ class HomeFragment : Fragment() {
 
     private fun formatearTempConUnidad(tempC: Double): String {
         val prefs = requireContext().getSharedPreferences("app_config", Context.MODE_PRIVATE)
-        val unidad = prefs.getString("unidad_temp", "C")
+
+        // Lee la unidad por dispositivo (misma lógica que ConfigFragment)
+        val keyUnidad = if (idDispositivo > 0) "unidad_temp_${idDispositivo}" else "unidad_temp"
+        val unidad = prefs.getString(keyUnidad, "C") ?: "C"
+
         return if (unidad == "F") {
             val tempF = tempC * 9.0 / 5.0 + 32.0
             "${tempF.roundToInt()} °F"
@@ -340,6 +360,7 @@ class HomeFragment : Fragment() {
             "${tempC.roundToInt()} °C"
         }
     }
+
 
     private fun calcularIndiceCalidad(co2: Double): Pair<Int, String> {
         val min = 400.0

@@ -35,6 +35,9 @@ class ConfigFragment : Fragment() {
     private val idUsuario: Int
         get() = (activity as? HomeActivity)?.idUsuario ?: 0
 
+    private val idDispositivo: Int
+        get() = (activity as? HomeActivity)?.idDispositivo ?: 0
+
     override fun onCreateView(
         inflater: LayoutInflater, container: ViewGroup?,
         savedInstanceState: Bundle?
@@ -45,7 +48,6 @@ class ConfigFragment : Fragment() {
     override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
         super.onViewCreated(view, savedInstanceState)
 
-        // Ajustes de medición
         rgUnidadTemp = view.findViewById(R.id.rgUnidadTemp)
         rbCelsius = view.findViewById(R.id.rbCelsius)
         rbFahrenheit = view.findViewById(R.id.rbFahrenheit)
@@ -55,13 +57,11 @@ class ConfigFragment : Fragment() {
         edtUmbralIndice = view.findViewById(R.id.edtUmbralIndice)
         btnGuardar = view.findViewById(R.id.btnGuardarConfig)
 
-        // Items tipo menú
         itemPerfil = view.findViewById(R.id.itemPerfil)
         itemCrearCuenta = view.findViewById(R.id.itemCrearCuenta)
         itemCerrarSesion = view.findViewById(R.id.itemCerrarSesion)
         itemResetDispositivo = view.findViewById(R.id.itemResetDispositivo)
 
-        // ==== Datos de sesión (para rol) ====
         val sessionPrefs = requireContext().getSharedPreferences("sesion", Context.MODE_PRIVATE)
         val rolUsuario = sessionPrefs.getString("rol", "SUPERVISOR") ?: "SUPERVISOR"
 
@@ -69,12 +69,10 @@ class ConfigFragment : Fragment() {
             btnGuardar.isEnabled = false
         }
 
-        // Ir a pantalla de perfil
         itemPerfil.setOnClickListener {
             startActivity(Intent(requireContext(), PerfilActivity::class.java))
         }
 
-        // Solo ADMIN ve "Crear cuenta de supervisor"
         if (rolUsuario == "ADMIN") {
             itemCrearCuenta.visibility = View.VISIBLE
             itemCrearCuenta.setOnClickListener {
@@ -84,43 +82,48 @@ class ConfigFragment : Fragment() {
             itemCrearCuenta.visibility = View.GONE
         }
 
-        itemCerrarSesion.setOnClickListener {
-            confirmarCerrarSesion()
-        }
+        itemCerrarSesion.setOnClickListener { confirmarCerrarSesion() }
+        itemResetDispositivo.setOnClickListener { confirmarFactoryReset() }
 
-        itemResetDispositivo.setOnClickListener {
-            confirmarFactoryReset()
-        }
-
-        // ==== Cargar preferencias guardadas (local) ====
+        // CAMBIO: claves por dispositivo para que cada dispositivo tenga su propia configuración local.
         val prefs = requireContext().getSharedPreferences("app_config", Context.MODE_PRIVATE)
-        val unidad = prefs.getString("unidad_temp", "C")
-        val umbralCo2 = prefs.getInt("umbral_co2", 800)
-        val umbralTemp = prefs.getInt("umbral_temp", 30)
-        val umbralHum = prefs.getInt("umbral_hum", 65)
-        val umbralIndice = prefs.getInt("umbral_indice", 60)
 
-        if (unidad == "F") {
-            rbFahrenheit.isChecked = true
-        } else {
-            rbCelsius.isChecked = true
-        }
+        val keyUnidad = prefKey("unidad_temp")
+        val keyCo2 = prefKey("umbral_co2")
+        val keyTemp = prefKey("umbral_temp")
+        val keyHum = prefKey("umbral_hum")
+        val keyIndice = prefKey("umbral_indice")
+
+        val unidad = prefs.getString(keyUnidad, "C")
+        val umbralCo2 = prefs.getInt(keyCo2, 800)
+        val umbralTemp = prefs.getInt(keyTemp, 30)
+        val umbralHum = prefs.getInt(keyHum, 65)
+        val umbralIndice = prefs.getInt(keyIndice, 60)
+
+        if (unidad == "F") rbFahrenheit.isChecked = true else rbCelsius.isChecked = true
 
         edtUmbralCO2.setText(umbralCo2.toString())
         edtUmbralTemp.setText(umbralTemp.toString())
         edtUmbralHum.setText(umbralHum.toString())
         edtUmbralIndice.setText(umbralIndice.toString())
 
-        // Cargar umbrales desde el servidor para sobreescribir si hay datos
+        // CAMBIO: cargar desde servidor por id_dispositivo (si existe selección válida)
         cargarUmbralesServidor()
 
-        btnGuardar.setOnClickListener {
-            guardarConfig()
-        }
+        btnGuardar.setOnClickListener { guardarConfig() }
     }
 
-    // ================== GUARDAR CONFIG APP + UMBRALES ==================
+    // Helper: genera clave por dispositivo (si no hay dispositivo seleccionado, usa clave base)
+    private fun prefKey(base: String): String {
+        return if (idDispositivo > 0) "${base}_${idDispositivo}" else base
+    }
+
     private fun guardarConfig() {
+        if (idDispositivo <= 0) {
+            Toast.makeText(requireContext(), "Selecciona un dispositivo en Home", Toast.LENGTH_SHORT).show()
+            return
+        }
+
         val unidadSeleccionada = if (rbFahrenheit.isChecked) "F" else "C"
 
         val txtCo2 = edtUmbralCO2.text.toString().trim()
@@ -155,32 +158,27 @@ class ConfigFragment : Fragment() {
             return
         }
 
-        // Guardar en SharedPreferences
+        // CAMBIO: guardar local por dispositivo
         val prefs = requireContext().getSharedPreferences("app_config", Context.MODE_PRIVATE)
         prefs.edit()
-            .putString("unidad_temp", unidadSeleccionada)
-            .putInt("umbral_co2", umbralCo2)
-            .putInt("umbral_temp", umbralTemp)
-            .putInt("umbral_hum", umbralHum)
-            .putInt("umbral_indice", umbralIndice)
+            .putString(prefKey("unidad_temp"), unidadSeleccionada)
+            .putInt(prefKey("umbral_co2"), umbralCo2)
+            .putInt(prefKey("umbral_temp"), umbralTemp)
+            .putInt(prefKey("umbral_hum"), umbralHum)
+            .putInt(prefKey("umbral_indice"), umbralIndice)
             .apply()
 
-        // Enviar al servidor para actualizar tabla umbrales
+        // CAMBIO: enviar al servidor por id_dispositivo
         guardarUmbralesServidor(umbralCo2, umbralTemp, umbralHum, umbralIndice)
     }
 
-    private fun guardarUmbralesServidor(
-        co2: Int,
-        temp: Int,
-        hum: Int,
-        indice: Int
-    ) {
-        if (idUsuario <= 0) {
-            Toast.makeText(requireContext(), "No se pudo obtener id de usuario", Toast.LENGTH_SHORT).show()
+    private fun guardarUmbralesServidor(co2: Int, temp: Int, hum: Int, indice: Int) {
+        if (idUsuario <= 0 || idDispositivo <= 0) {
+            Toast.makeText(requireContext(), "No se pudo obtener usuario/dispositivo", Toast.LENGTH_SHORT).show()
             return
         }
 
-        val url = BASE_URL + "guardar_umbrales.php" // AJUSTA ESTA URL
+        val url = BASE_URL + "guardar_umbrales.php"
 
         val queue = Volley.newRequestQueue(requireContext())
         val request = object : StringRequest(
@@ -196,14 +194,14 @@ class ConfigFragment : Fragment() {
                         if (ok) "Umbrales guardados" else "Error: $msg",
                         Toast.LENGTH_SHORT
                     ).show()
-                } catch (e: Exception) {
+                } catch (_: Exception) {
                     Toast.makeText(requireContext(), "Error al procesar respuesta", Toast.LENGTH_SHORT).show()
                 }
             },
             {
                 Toast.makeText(requireContext(), "Error de red al guardar umbrales", Toast.LENGTH_SHORT).show()
             }
-        ){
+        ) {
             override fun getHeaders(): MutableMap<String, String> {
                 return Session.authHeaders(requireContext())
             }
@@ -211,6 +209,10 @@ class ConfigFragment : Fragment() {
             override fun getParams(): MutableMap<String, String> {
                 val params = HashMap<String, String>()
                 params["id_usuario"] = idUsuario.toString()
+
+                // CAMBIO: el servidor debe usar este valor para guardar por dispositivo
+                params["id_dispositivo"] = idDispositivo.toString()
+
                 params["umbral_co2"] = co2.toString()
                 params["umbral_temp"] = temp.toString()
                 params["umbral_hum"] = hum.toString()
@@ -223,7 +225,7 @@ class ConfigFragment : Fragment() {
     }
 
     private fun cargarUmbralesServidor() {
-        if (idUsuario <= 0) return
+        if (idUsuario <= 0 || idDispositivo <= 0) return
 
         val url = BASE_URL + "obtener_umbrales.php"
 
@@ -253,7 +255,7 @@ class ConfigFragment : Fragment() {
             {
                 // si falla, dejamos lo que está en prefs
             }
-        ){
+        ) {
             override fun getHeaders(): MutableMap<String, String> {
                 return Session.authHeaders(requireContext())
             }
@@ -261,6 +263,10 @@ class ConfigFragment : Fragment() {
             override fun getParams(): MutableMap<String, String> {
                 val params = HashMap<String, String>()
                 params["id_usuario"] = idUsuario.toString()
+
+                // CAMBIO: el servidor debe usar este valor para obtener por dispositivo
+                params["id_dispositivo"] = idDispositivo.toString()
+
                 return params
             }
         }
@@ -268,7 +274,6 @@ class ConfigFragment : Fragment() {
         queue.add(request)
     }
 
-    // ================== CERRAR SESIÓN ==================
     private fun confirmarCerrarSesion() {
         AlertDialog.Builder(requireContext())
             .setTitle("Cerrar sesión")
@@ -279,8 +284,7 @@ class ConfigFragment : Fragment() {
     }
 
     private fun cerrarSesion() {
-        val sessionPrefs =
-            requireContext().getSharedPreferences("sesion", Context.MODE_PRIVATE)
+        val sessionPrefs = requireContext().getSharedPreferences("sesion", Context.MODE_PRIVATE)
         sessionPrefs.edit().clear().apply()
 
         val intent = Intent(requireContext(), MainActivity::class.java)
@@ -288,13 +292,11 @@ class ConfigFragment : Fragment() {
         startActivity(intent)
     }
 
-    // ================== FACTORY RESET ESP32 ==================
     private fun confirmarFactoryReset() {
         AlertDialog.Builder(requireContext())
             .setTitle("Restablecer dispositivo")
             .setMessage(
-                "Esto borrará la configuración WiFi/token del sensor y lo pondrá en modo AP.\n\n" +
-                        "¿Deseas continuar?"
+                "Esto borrará la configuración WiFi/token del sensor y lo pondrá en modo AP.\n\n¿Deseas continuar?"
             )
             .setPositiveButton("Sí") { _, _ -> enviarFactoryReset() }
             .setNegativeButton("Cancelar", null)
@@ -304,10 +306,12 @@ class ConfigFragment : Fragment() {
     private fun enviarFactoryReset() {
         val prefs = requireContext().getSharedPreferences("app_config", Context.MODE_PRIVATE)
 
+        // CAMBIO: permite guardar una IP distinta por dispositivo si luego la manejas así.
         val ipFromArgs = arguments?.getString("espIp")
-        val ipFromPrefs = prefs.getString("esp_ip", null)
-        val ipEsp = ipFromArgs ?: ipFromPrefs ?: "192.168.4.1"
+        val ipFromPrefsPorDispositivo = if (idDispositivo > 0) prefs.getString("esp_ip_${idDispositivo}", null) else null
+        val ipFromPrefsGeneral = prefs.getString("esp_ip", null)
 
+        val ipEsp = ipFromArgs ?: ipFromPrefsPorDispositivo ?: ipFromPrefsGeneral ?: "192.168.4.1"
         val url = "http://$ipEsp/factory_reset"
 
         val queue = Volley.newRequestQueue(requireContext())
@@ -334,12 +338,19 @@ class ConfigFragment : Fragment() {
         queue.add(request)
     }
 
-
-    // ===== Helpers para usar desde otras pantallas (unidades) =====
     companion object {
+
+        // Se mantienen los métodos originales para no romper llamadas existentes.
+
         fun getUnidadTemperatura(context: Context): String {
             val prefs = context.getSharedPreferences("app_config", Context.MODE_PRIVATE)
             return prefs.getString("unidad_temp", "C") ?: "C"
+        }
+
+        fun getUnidadTemperatura(context: Context, idDispositivo: Int): String {
+            val prefs = context.getSharedPreferences("app_config", Context.MODE_PRIVATE)
+            val key = if (idDispositivo > 0) "unidad_temp_${idDispositivo}" else "unidad_temp"
+            return prefs.getString(key, "C") ?: "C"
         }
 
         fun getUmbralCo2(context: Context): Int {
@@ -347,8 +358,24 @@ class ConfigFragment : Fragment() {
             return prefs.getInt("umbral_co2", 1000)
         }
 
+        fun getUmbralCo2(context: Context, idDispositivo: Int): Int {
+            val prefs = context.getSharedPreferences("app_config", Context.MODE_PRIVATE)
+            val key = if (idDispositivo > 0) "umbral_co2_${idDispositivo}" else "umbral_co2"
+            return prefs.getInt(key, 1000)
+        }
+
         fun formatearTemperatura(celsius: Float, context: Context): String {
             val unidad = getUnidadTemperatura(context)
+            return if (unidad == "F") {
+                val f = celsius * 9f / 5f + 32f
+                String.format(Locale.getDefault(), "%.1f °F", f)
+            } else {
+                String.format(Locale.getDefault(), "%.1f °C", celsius)
+            }
+        }
+
+        fun formatearTemperatura(celsius: Float, context: Context, idDispositivo: Int): String {
+            val unidad = getUnidadTemperatura(context, idDispositivo)
             return if (unidad == "F") {
                 val f = celsius * 9f / 5f + 32f
                 String.format(Locale.getDefault(), "%.1f °F", f)
