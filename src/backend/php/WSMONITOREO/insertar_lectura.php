@@ -253,14 +253,14 @@ function enviarCorreoAlarma($para, $nombre, $dispositivo, $parametro, $valor, $u
         $mail->isSMTP();
         $mail->Host       = 'smtp.gmail.com';
         $mail->SMTPAuth   = true;
-        $mail->Username   = 'javi3rguerrero@gmail.com';   // tu correo Gmail
-        $mail->Password   = 'oeqn byfj ujen ztgq';     // contraseña de aplicación REAL
+        $mail->Username   = 'TU_CORREO@gmail.com';   // tu correo Gmail
+        $mail->Password   = 'TU_APP_PASSWORD';     // contraseña de aplicación REAL
         $mail->SMTPSecure = \PHPMailer\PHPMailer\PHPMailer::ENCRYPTION_STARTTLS;
         $mail->Port       = 587;
         $mail->CharSet    = 'UTF-8';
 
         // Remitente y destinatario (el remitente debe ser el mismo Gmail normalmente)
-        $mail->setFrom('javi3rguerrero@gmail.com', 'Sistema Monitoreo');
+        $mail->setFrom('TU_CORREO@gmail.com', 'Sistema Monitoreo');
         $mail->addAddress($para, $nombre);
 
         // Contenido

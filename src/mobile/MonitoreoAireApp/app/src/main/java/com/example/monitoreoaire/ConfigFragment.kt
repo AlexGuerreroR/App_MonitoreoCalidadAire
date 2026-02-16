@@ -85,7 +85,6 @@ class ConfigFragment : Fragment() {
         itemCerrarSesion.setOnClickListener { confirmarCerrarSesion() }
         itemResetDispositivo.setOnClickListener { confirmarFactoryReset() }
 
-        // CAMBIO: claves por dispositivo para que cada dispositivo tenga su propia configuración local.
         val prefs = requireContext().getSharedPreferences("app_config", Context.MODE_PRIVATE)
 
         val keyUnidad = prefKey("unidad_temp")
@@ -107,13 +106,11 @@ class ConfigFragment : Fragment() {
         edtUmbralHum.setText(umbralHum.toString())
         edtUmbralIndice.setText(umbralIndice.toString())
 
-        // CAMBIO: cargar desde servidor por id_dispositivo (si existe selección válida)
         cargarUmbralesServidor()
 
         btnGuardar.setOnClickListener { guardarConfig() }
     }
 
-    // Helper: genera clave por dispositivo (si no hay dispositivo seleccionado, usa clave base)
     private fun prefKey(base: String): String {
         return if (idDispositivo > 0) "${base}_${idDispositivo}" else base
     }
@@ -158,7 +155,6 @@ class ConfigFragment : Fragment() {
             return
         }
 
-        // CAMBIO: guardar local por dispositivo
         val prefs = requireContext().getSharedPreferences("app_config", Context.MODE_PRIVATE)
         prefs.edit()
             .putString(prefKey("unidad_temp"), unidadSeleccionada)
@@ -168,7 +164,6 @@ class ConfigFragment : Fragment() {
             .putInt(prefKey("umbral_indice"), umbralIndice)
             .apply()
 
-        // CAMBIO: enviar al servidor por id_dispositivo
         guardarUmbralesServidor(umbralCo2, umbralTemp, umbralHum, umbralIndice)
     }
 
@@ -209,10 +204,7 @@ class ConfigFragment : Fragment() {
             override fun getParams(): MutableMap<String, String> {
                 val params = HashMap<String, String>()
                 params["id_usuario"] = idUsuario.toString()
-
-                // CAMBIO: el servidor debe usar este valor para guardar por dispositivo
                 params["id_dispositivo"] = idDispositivo.toString()
-
                 params["umbral_co2"] = co2.toString()
                 params["umbral_temp"] = temp.toString()
                 params["umbral_hum"] = hum.toString()
@@ -253,7 +245,6 @@ class ConfigFragment : Fragment() {
                 }
             },
             {
-                // si falla, dejamos lo que está en prefs
             }
         ) {
             override fun getHeaders(): MutableMap<String, String> {
@@ -263,10 +254,7 @@ class ConfigFragment : Fragment() {
             override fun getParams(): MutableMap<String, String> {
                 val params = HashMap<String, String>()
                 params["id_usuario"] = idUsuario.toString()
-
-                // CAMBIO: el servidor debe usar este valor para obtener por dispositivo
                 params["id_dispositivo"] = idDispositivo.toString()
-
                 return params
             }
         }
@@ -295,26 +283,56 @@ class ConfigFragment : Fragment() {
     private fun confirmarFactoryReset() {
         AlertDialog.Builder(requireContext())
             .setTitle("Restablecer dispositivo")
-            .setMessage(
-                "Esto borrará la configuración WiFi/token del sensor y lo pondrá en modo AP.\n\n¿Deseas continuar?"
-            )
+            .setMessage("Esto borrará la configuración WiFi/token del sensor y lo pondrá en modo AP.\n\n¿Deseas continuar?")
             .setPositiveButton("Sí") { _, _ -> enviarFactoryReset() }
             .setNegativeButton("Cancelar", null)
             .show()
     }
 
     private fun enviarFactoryReset() {
-        val prefs = requireContext().getSharedPreferences("app_config", Context.MODE_PRIVATE)
-
-        // CAMBIO: permite guardar una IP distinta por dispositivo si luego la manejas así.
-        val ipFromArgs = arguments?.getString("espIp")
-        val ipFromPrefsPorDispositivo = if (idDispositivo > 0) prefs.getString("esp_ip_${idDispositivo}", null) else null
-        val ipFromPrefsGeneral = prefs.getString("esp_ip", null)
-
-        val ipEsp = ipFromArgs ?: ipFromPrefsPorDispositivo ?: ipFromPrefsGeneral ?: "192.168.4.1"
-        val url = "http://$ipEsp/factory_reset"
+        if (idDispositivo <= 0) {
+            Toast.makeText(requireContext(), "Selecciona un dispositivo", Toast.LENGTH_LONG).show()
+            return
+        }
 
         val queue = Volley.newRequestQueue(requireContext())
+        val urlIp = "${ApiConfig.ULTIMA_LECTURA_URL}?id_dispositivo=$idDispositivo"
+
+        val reqIp = object : StringRequest(
+            Request.Method.GET,
+            urlIp,
+            { resp ->
+                val ip = try {
+                    val json = org.json.JSONObject(resp)
+                    val data = json.optJSONObject("data")
+                    data?.optString("ip_dispositivo", "")?.trim().orEmpty()
+                } catch (e: Exception) {
+                    ""
+                }
+
+                val ipFinal = if (ip.isNotEmpty()) ip else "192.168.4.1"
+                enviarResetDirecto(queue, ipFinal)
+            },
+            { error ->
+                error.printStackTrace()
+                Toast.makeText(
+                    requireContext(),
+                    "No se pudo obtener la IP del dispositivo desde el servidor",
+                    Toast.LENGTH_LONG
+                ).show()
+            }
+        ) {
+            override fun getHeaders(): MutableMap<String, String> {
+                return Session.authHeaders(requireContext())
+            }
+        }
+
+        queue.add(reqIp)
+    }
+
+    private fun enviarResetDirecto(queue: com.android.volley.RequestQueue, ipEsp: String) {
+        val url = "http://$ipEsp/factory_reset"
+
         val request = StringRequest(
             Request.Method.GET,
             url,
@@ -339,8 +357,6 @@ class ConfigFragment : Fragment() {
     }
 
     companion object {
-
-        // Se mantienen los métodos originales para no romper llamadas existentes.
 
         fun getUnidadTemperatura(context: Context): String {
             val prefs = context.getSharedPreferences("app_config", Context.MODE_PRIVATE)
