@@ -464,4 +464,3 @@ void loop() {
     if (lastJson.length() > 0) httpPostTelemetry(lastJson);
   }
 }
-
