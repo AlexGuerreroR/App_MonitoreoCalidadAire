@@ -1,4 +1,4 @@
-\# Trazabilidad del proyecto
+\# Trazabilidad del proyecto.
 
 &nbsp;
 
