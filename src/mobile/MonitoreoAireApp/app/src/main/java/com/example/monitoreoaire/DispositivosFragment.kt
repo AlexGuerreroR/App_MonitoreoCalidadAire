@@ -1,5 +1,6 @@
 package com.example.monitoreoaire
 
+import android.annotation.SuppressLint
 import android.app.AlertDialog
 import android.os.Bundle
 import android.view.*
@@ -242,6 +243,7 @@ class DispositivosFragment : Fragment() {
 
     // ========== DIALOGO PARA CONFIGURAR ESP32 (SSID + PASSWORD) ==========
 
+
     private fun mostrarDialogoConfigurar(position: Int) {
         if (position !in tokensDispositivos.indices) {
             Toast.makeText(requireContext(), "Datos del dispositivo inválidos", Toast.LENGTH_SHORT).show()
@@ -258,7 +260,7 @@ class DispositivosFragment : Fragment() {
         val edtPass = v.findViewById<EditText>(R.id.edtPassConfig)
         val txtInfo  = v.findViewById<TextView>(R.id.txtInfoToken)
 
-        txtInfo.text = "Token del dispositivo (usado internamente):\n$token"
+        txtInfo.text = getString(R.string.instrucciones_configuracion_esp32, token)
 
         builder.setView(v)
         builder.setPositiveButton("Enviar config") { _, _ ->
