@@ -276,7 +276,7 @@ function enviarCorreoAlarma($para, $nombre, $dispositivo, $parametro, $valor, $u
         $mail->CharSet    = 'UTF-8';
 
         // Remitente y destinatario (el remitente debe ser el mismo Gmail normalmente)
-        $mail->setFrom('javi3rguerrero@gmail.com', 'Sistema Monitoreo');
+        $mail->setFrom('TU_CORREO@gmail.com', 'Sistema Monitoreo');
         $mail->addAddress($para, $nombre);
 
         // Contenido
