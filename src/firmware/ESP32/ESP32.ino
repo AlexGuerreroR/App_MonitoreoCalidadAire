@@ -25,33 +25,30 @@ DHT dht(DHTPIN, DHTTYPE);
 #define MQ135_PIN 35
 
 // ---------- INTERVALOS (AJUSTE FINAL) ----------
-const uint32_t SENSOR_INTERVAL_MS = 2000;   // cada 2s lee sensores, actualiza TFT y publica MQTT
-const uint32_t MQTT_INTERVAL_MS   = 2000;   // cada 2s publica MQTT (tiempo real)
-const uint32_t HTTP_INTERVAL_MS   = 30000;  // cada 30s manda a BD por HTTP (no la llena)
+const uint32_t SENSOR_INTERVAL_MS = 2500;   // Respetando el límite de hardware del DHT11
+const uint32_t MQTT_INTERVAL_MS   = 2000;   
+const uint32_t HTTP_INTERVAL_MS   = 30000;  
 
 // ---------- VALORES ----------
 float gTemp = NAN;
 float gHum  = NAN;
 bool  gDhtError = true;
-int   gMqRaw = 0;
+int   gMqPpm = 0; 
 
-// ---------- UMBRALES VISUALES (TFT) ----------
-const int MQ135_MAX_VISUAL = 800;
+// ---------- UMBRALES VISUALES Y CALIDAD ----------
+const int MQ135_BASAL = 400;   // Aire fresco típico (PPM)
+const int MQ135_MALO  = 2000;  // Nivel peligroso (PPM)
+const int MQ135_MAX_VISUAL = 1500; // Alarma visual TFT
 
-// ---------- CORRECCIÓN HUMEDAD ----------
-const float HUM_SCALE  = 1.0f;
-const float HUM_OFFSET = -22.0f;
+// ---------- ÍNDICE DE CALIDAD (LÓGICA PROFESIONAL) ----------
+float calcularIndiceCalidadAire(float mq_ppm, float temp, float hum) {
+  // 1. Riesgo por GAS (PPM). Este es el factor CRÍTICO.
+  float gasScore = 0.0f;
+  if (mq_ppm <= MQ135_BASAL)       gasScore = 0.0f;
+  else if (mq_ppm >= MQ135_MALO)   gasScore = 100.0f;
+  else gasScore = (mq_ppm - MQ135_BASAL) * 100.0f / (MQ135_MALO - MQ135_BASAL);
 
-// ---------- ÍNDICE DE CALIDAD ----------
-int MQ135_BASAL = 200;
-int MQ135_MALO  = 800;
-
-float calcularRiesgoAire(float mq, float temp, float hum) {
-  float gasScore;
-  if (mq <= MQ135_BASAL)       gasScore = 0.0f;
-  else if (mq >= MQ135_MALO)  gasScore = 100.0f;
-  else gasScore = (mq - MQ135_BASAL) * 100.0f / (MQ135_MALO - MQ135_BASAL);
-
+  // 2. Riesgo por DISCONFORT TÉRMICO
   float humScore = 0.0f;
   if (hum < 40.0f) {
     if (hum <= 20.0f) humScore = 100.0f;
@@ -70,18 +67,17 @@ float calcularRiesgoAire(float mq, float temp, float hum) {
     else tempScore = (temp - 26.0f) * 100.0f / 4.0f;
   }
 
-  float riesgo = 0.5f * gasScore + 0.25f * humScore + 0.25f * tempScore;
-  if (riesgo < 0.0f) riesgo = 0.0f;
-  if (riesgo > 100.0f) riesgo = 100.0f;
-  return riesgo;
-}
+  // 3. LA LÓGICA CORRECTA: El gas manda.
+  float riesgoClima = (humScore + tempScore) / 2.0f;
+  float riesgoFinal = gasScore; 
+  
+  if (riesgoClima > riesgoFinal) {
+      riesgoFinal = riesgoClima * 0.4f; // Penalización máxima de 40% por clima
+  }
 
-float calcularIndiceCalidadAire(float mq, float temp, float hum) {
-  float riesgo = calcularRiesgoAire(mq, temp, hum);
-  float calidad = 100.0f - riesgo;
-  if (calidad < 0.0f) calidad = 0.0f;
-  if (calidad > 100.0f) calidad = 100.0f;
-  return calidad;
+  if (riesgoFinal > 100.0f) riesgoFinal = 100.0f;
+  
+  return 100.0f - riesgoFinal; // 100 = Perfecto, 0 = Peligroso
 }
 
 // ---------- WIFI AP (CONFIG) ----------
@@ -148,7 +144,7 @@ void drawLayout() {
 }
 
 void updateDisplay() {
-  bool alarma = (gMqRaw > MQ135_MAX_VISUAL);
+  bool alarma = (gMqPpm > MQ135_MAX_VISUAL);
 
   uint16_t color = alarma ? ILI9341_RED : ILI9341_GREEN;
   tft.fillRect(110, 45, 70, 50, color);
@@ -170,18 +166,34 @@ void updateDisplay() {
 
   tft.fillRect(110, 160, 200, 40, ILI9341_BLACK);
   tft.setCursor(115, 165);
-  tft.print(gMqRaw);
-  tft.print(" (0-4095)");
+  tft.print(gMqPpm);
+  tft.print(" PPM est."); 
 }
 
-// ---------- MQ135 (PROMEDIO) ----------
+// ---------- MQ135 (CÁLCULO MATEMÁTICO A PPM) ----------
 int leerMQPromedio() {
   long sum = 0;
   for (int i = 0; i < 20; i++) {
     sum += analogRead(MQ135_PIN);
     delay(2);
   }
-  return (int)(sum / 20);
+  float adc_promedio = sum / 20.0f;
+  
+  if (adc_promedio == 0) return 400; 
+  
+  float voltaje = adc_promedio * (3.3f / 4095.0f);
+  if (voltaje >= 3.3f) voltaje = 3.29f; 
+  
+  float RS_gas = ((3.3f * 10.0f) / voltaje) - 10.0f; 
+  float R0 = 41.76f; 
+  float ratio = RS_gas / R0;
+  
+  float ppm = 110.47f * pow(ratio, -2.862f);
+  
+  if (ppm < 400.0f) ppm = 400.0f; 
+  if (ppm > 5000.0f) ppm = 5000.0f;
+
+  return (int)ppm;
 }
 
 // ---------- SENSORES ----------
@@ -195,18 +207,18 @@ void leerSensores() {
     gDhtError = false;
     gTemp = t;
 
-    float hCorr = (h * HUM_SCALE) + HUM_OFFSET;
-    if (hCorr < 0.0f) hCorr = 0.0f;
-    if (hCorr > 100.0f) hCorr = 100.0f;
-    gHum = hCorr;
+    // Lectura directa sin alteraciones artificiales
+    if (h < 0.0f) h = 0.0f;
+    if (h > 100.0f) h = 100.0f;
+    gHum = h;
   }
 
-  gMqRaw = leerMQPromedio();
+  gMqPpm = leerMQPromedio();
   updateDisplay();
 }
 
 String buildJson() {
-  float co2 = (float)gMqRaw;
+  float co2 = (float)gMqPpm;
   float temp = gDhtError ? 0.0f : gTemp;
   float hum  = gDhtError ? 0.0f : gHum;
   float pm25 = 0.0f;
@@ -383,7 +395,7 @@ void mqttPublishTelemetry(const String& jsonData) {
   mqttClient.publish(topic.c_str(), jsonData.c_str());
 }
 
-// ---------- ENVÍO A BD (HTTP) CADA 30s ----------
+// ---------- ENVÍO A BD (HTTP) ----------
 void httpPostTelemetry(const String& jsonData) {
   if (enModoAP) return;
   if (WiFi.status() != WL_CONNECTED) return;
@@ -445,20 +457,17 @@ void loop() {
 
   uint32_t now = millis();
 
-  // 1) Cada 2s: lee sensores + TFT + arma JSON (base para MQTT y HTTP)
   if (now - lastSensorAt >= SENSOR_INTERVAL_MS) {
     lastSensorAt = now;
     leerSensores();
     lastJson = buildJson();
   }
 
-  // 2) MQTT cada 2s (solo tiempo real para la app)
   if (now - lastMqttAt >= MQTT_INTERVAL_MS) {
     lastMqttAt = now;
     if (lastJson.length() > 0) mqttPublishTelemetry(lastJson);
   }
 
-  // 3) HTTP cada 30s (solo para la base de datos)
   if (now - lastHttpAt >= HTTP_INTERVAL_MS) {
     lastHttpAt = now;
     if (lastJson.length() > 0) httpPostTelemetry(lastJson);
