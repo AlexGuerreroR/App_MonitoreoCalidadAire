@@ -5,38 +5,40 @@ require_once 'auth.php';
 
 $user = require_auth($cn);
 $rol = strtoupper($user['rol']);
+$mi_id = intval($user['id']);
 
-$id_usuario_req = intval($_GET['id_usuario'] ?? 0);
-
-if ($rol === 'TECNICO') {
-    $id_usuario = intval($user['id']);
+// 1. Averiguar el ID del ADMIN dueño de los dispositivos
+if ($rol === 'ADMIN') {
+    // Si soy el Admin, soy dueño de mis dispositivos
+    $id_dueño = $mi_id;
 } else {
-    $id_usuario = $id_usuario_req > 0 ? $id_usuario_req : intval($user['id']);
-}
+    // Si soy Técnico o Supervisor, busco a mi creador
+    $query = $cn->prepare("SELECT id_admin_creador FROM usuarios WHERE id = ?");
+    $query->bind_param("i", $mi_id);
+    $query->execute();
+    $resQuery = $query->get_result();
+    $rowUsuario = $resQuery->fetch_assoc();
 
-if ($id_usuario <= 0) {
-    echo json_encode([]);
-    exit;
-}
-
-if ($rol === 'ADMIN' || $rol === 'SUPERVISOR') {
-    // Si pide su propio id, se filtra; si envía 0, devuelve todo
-    if ($id_usuario_req === 0) {
-        $sql = $cn->prepare("SELECT id, nombre_dispositivo, ubicacion, token_dispositivo FROM dispositivos");
-        $sql->execute();
+    if (!empty($rowUsuario['id_admin_creador'])) {
+        $id_dueño = intval($rowUsuario['id_admin_creador']);
     } else {
-        $sql = $cn->prepare("SELECT id, nombre_dispositivo, ubicacion, token_dispositivo FROM dispositivos WHERE id_usuario = ?");
-        $sql->bind_param("i", $id_usuario);
-        $sql->execute();
+        // FALLBACK: Si es un usuario viejo sin creador asignado, toma los dispositivos del primer ADMIN
+        $queryAdmin = $cn->query("SELECT id FROM usuarios WHERE rol = 'ADMIN' ORDER BY id ASC LIMIT 1");
+        $adminData = $queryAdmin->fetch_assoc();
+        $id_dueño = $adminData ? intval($adminData['id']) : $mi_id;
     }
-} else {
-    $sql = $cn->prepare("SELECT id, nombre_dispositivo, ubicacion, token_dispositivo FROM dispositivos WHERE id_usuario = ?");
-    $sql->bind_param("i", $id_usuario);
-    $sql->execute();
 }
+
+// 2. Traer los dispositivos de ese dueño
+$sql = $cn->prepare("SELECT id, nombre_dispositivo, ubicacion, token_dispositivo FROM dispositivos WHERE id_usuario = ?");
+$sql->bind_param("i", $id_dueño);
+$sql->execute();
 
 $res = $sql->get_result();
 $datos = [];
-while ($row = $res->fetch_assoc()) $datos[] = $row;
+while ($row = $res->fetch_assoc()) {
+    $datos[] = $row;
+}
+
 echo json_encode($datos);
 ?>

@@ -37,7 +37,13 @@ class PerfilActivity : AppCompatActivity() {
 
         edtNombre.setText(nombre)
         edtEmail.setText(email)
-        txtRol.text = if (rol == "ADMIN") "Administrador" else "Supervisor"
+        // Asignación correcta de roles en pantalla
+        txtRol.text = when (rol) {
+            "ADMIN" -> "Administrador"
+            "TECNICO" -> "Técnico"
+            "SUPERVISOR" -> "Supervisor"
+            else -> rol // Por si acaso llega un rol no esperado
+        }
 
         btnGuardar.setOnClickListener {
             guardarPerfil()
