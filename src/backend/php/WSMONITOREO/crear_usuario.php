@@ -36,8 +36,14 @@ if ($check->num_rows > 0) {
 
 $hash = password_hash($password, PASSWORD_BCRYPT);
 
-$sql = $cn->prepare("INSERT INTO usuarios(nombre,email,password,pregunta_seguridad,respuesta_seguridad,rol) VALUES (?,?,?,?,?,?)");
-$sql->bind_param("ssssss", $nombre, $email, $hash, $pregunta, $respuesta, $rol);
+// 1. Capturamos el ID del ADMIN que está logueado creando la cuenta
+$id_creador = $user['id'];
+
+// 2. Agregamos id_admin_creador a la consulta SQL
+$sql = $cn->prepare("INSERT INTO usuarios(nombre,email,password,pregunta_seguridad,respuesta_seguridad,rol,id_admin_creador) VALUES (?,?,?,?,?,?,?)");
+
+// 3. Agregamos 'i' (integer) al string de tipos y la variable $id_creador al final
+$sql->bind_param("ssssssi", $nombre, $email, $hash, $pregunta, $respuesta, $rol, $id_creador);
 
 if ($sql->execute()) {
     echo json_encode(["success" => true, "message" => "Usuario creado", "id_usuario" => $sql->insert_id, "rol" => $rol]);
