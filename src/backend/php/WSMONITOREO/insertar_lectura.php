@@ -157,7 +157,7 @@ function verificarAlarmas($cn, $id_dispositivo, $co2, $pm25, $temp, $hum, $indic
     $res = $sql->get_result();
 
     while ($row = $res->fetch_assoc()) {
-        $parametro     = strtoupper($row['parametro']); // CO2, PM25, TEMP, HUM, INDICE
+        $parametro     = strtoupper($row['parametro']); 
         $umbral        = $row['valor_maximo'];
         $nombreDisp    = $row['nombre_dispositivo'];
         $nombreUsuario = $row['nombre_usuario'];
@@ -177,30 +177,46 @@ function verificarAlarmas($cn, $id_dispositivo, $co2, $pm25, $temp, $hum, $indic
             $disparar = false;
 
             if ($parametro === 'INDICE') {
-                // INDICE = calidad 0–100 → alarma si la calidad cae por debajo del mínimo
-                if ($valor < $umbral) {
-                    $disparar = true;
-                }
+                if ($valor < $umbral) $disparar = true;
             } else {
-                // Otros parámetros → alarma si se supera el máximo permitido
-                if ($valor > $umbral) {
-                    $disparar = true;
-                }
+                if ($valor > $umbral) $disparar = true;
             }
 
             if ($disparar) {
-                $mensaje = "Alarma en $nombreDisp. Parámetro: $parametro, Valor: $valor, Umbral: $umbral";
+                // 1. Verificamos si ya tenemos un registro de que este parámetro superó el umbral
+                $sqlTrack = $cn->prepare("SELECT inicio_exceso FROM tracking_alarmas WHERE id_dispositivo = ? AND parametro = ?");
+                $sqlTrack->bind_param("is", $id_dispositivo, $parametro);
+                $sqlTrack->execute();
+                $resTrack = $sqlTrack->get_result();
 
-                // Solo registramos y enviamos correo si NO hubo un evento reciente
-                $insertado = registrarEventoAlarma($cn, $id_dispositivo, $parametro, $valor, $umbral, $mensaje);
-                if ($insertado) {
-                    enviarCorreoAlarma($emailUsuario, $nombreUsuario, $nombreDisp, $parametro, $valor, $umbral);
+                if ($rowTrack = $resTrack->fetch_assoc()) {
+                    // 2. Ya estaba superando el umbral. ¿Pasaron 60 segundos?
+                    $inicio = strtotime($rowTrack['inicio_exceso']);
+                    if ((time() - $inicio) >= 60) {
+                        
+                        $mensaje = "Alarma en $nombreDisp. Parámetro: $parametro, Valor: $valor, Umbral: $umbral";
+
+                        // El registro del evento ya tiene su propia validación de INTERVALO_EVENTO_MINUTOS
+                        $insertado = registrarEventoAlarma($cn, $id_dispositivo, $parametro, $valor, $umbral, $mensaje);
+                        if ($insertado) {
+                            enviarCorreoAlarma($emailUsuario, $nombreUsuario, $nombreDisp, $parametro, $valor, $umbral);
+                        }
+                    }
+                } else {
+                    // 3. Es la primera vez (o el primer pico) que supera el umbral. Empezamos a contar.
+                    $sqlIns = $cn->prepare("INSERT INTO tracking_alarmas (id_dispositivo, parametro, inicio_exceso) VALUES (?, ?, NOW())");
+                    $sqlIns->bind_param("is", $id_dispositivo, $parametro);
+                    $sqlIns->execute();
                 }
+            } else {
+                // 4. Si el valor es normal, eliminamos cualquier conteo previo (resetea el falso positivo)
+                $sqlDel = $cn->prepare("DELETE FROM tracking_alarmas WHERE id_dispositivo = ? AND parametro = ?");
+                $sqlDel->bind_param("is", $id_dispositivo, $parametro);
+                $sqlDel->execute();
             }
         }
     }
 }
-
 function registrarEventoAlarma($cn, $id_dispositivo, $parametro, $valor, $umbral, $mensaje)
 {
     // 1) Ver si hubo un evento reciente para ese dispositivo + parámetro
@@ -253,8 +269,8 @@ function enviarCorreoAlarma($para, $nombre, $dispositivo, $parametro, $valor, $u
         $mail->isSMTP();
         $mail->Host       = 'smtp.gmail.com';
         $mail->SMTPAuth   = true;
-        $mail->Username   = 'javi3rguerrero@gmail.com';   // tu correo Gmail
-        $mail->Password   = 'oeqn byfj ujen ztgq';     // contraseña de aplicación REAL
+        $mail->Username   = 'TU_CORREO@gmail.com';   // tu correo Gmail
+        $mail->Password   = 'TU_APP_PASSWORD';     // contraseña de aplicación REAL
         $mail->SMTPSecure = \PHPMailer\PHPMailer\PHPMailer::ENCRYPTION_STARTTLS;
         $mail->Port       = 587;
         $mail->CharSet    = 'UTF-8';
@@ -267,6 +283,10 @@ function enviarCorreoAlarma($para, $nombre, $dispositivo, $parametro, $valor, $u
         $mail->isHTML(true);
         $mail->Subject = "Alarma de $parametro en el dispositivo $dispositivo";
 
+        // Creamos un objeto de fecha forzando la zona horaria local solo para este texto
+        $dt = new DateTime("now", new DateTimeZone('America/Guayaquil'));
+        $fechaLocal = $dt->format('d-m-Y H:i:s');
+
         $body  = "<h2>Alerta de calidad de aire</h2>";
         $body .= "<p>Hola $nombre,</p>";
         $body .= "<p>Se ha detectado una alarma en tu dispositivo <strong>$dispositivo</strong>:</p>";
@@ -274,7 +294,7 @@ function enviarCorreoAlarma($para, $nombre, $dispositivo, $parametro, $valor, $u
         $body .= "<li>Par&aacute;metro: <strong>$parametro</strong></li>";
         $body .= "<li>Valor medido: <strong>$valor</strong></li>";
         $body .= "<li>Umbral configurado: <strong>$umbral</strong></li>";
-        $body .= "<li>Fecha y hora: " . date('d-m-Y H:i:s') . "</li>";
+        $body .= "<li>Fecha y hora: " . $fechaLocal . "</li>";
         $body .= "</ul>";
         $body .= "<p>Por favor revisa la zona monitoreada.</p>";
 
