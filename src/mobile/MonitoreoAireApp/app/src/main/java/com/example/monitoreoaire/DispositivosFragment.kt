@@ -113,6 +113,14 @@ class DispositivosFragment : Fragment() {
 
     private fun mostrarOpcionesDispositivo(position: Int) {
         val nombre = listaTexto[position].substringBefore("\n")
+        val rolUsuario = Session.getRole(requireContext())
+
+        // Si es TECNICO, no mostramos el menú de opciones críticas
+        if (rolUsuario == "TECNICO") {
+            Toast.makeText(requireContext(), "Acceso limitado: Solo lectura para técnicos", Toast.LENGTH_SHORT).show()
+            return
+        }
+
         val opciones = arrayOf("Configurar red", "Eliminar dispositivo")
 
         AlertDialog.Builder(requireContext())
@@ -125,7 +133,6 @@ class DispositivosFragment : Fragment() {
             }
             .show()
     }
-
     private fun confirmarEliminar(position: Int) {
         val nombre = listaTexto[position].substringBefore("\n")
         val id = idsDispositivos[position]
