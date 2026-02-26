@@ -5,8 +5,8 @@
 define('MAIL_ENABLED', true);
 define('MAIL_HOST', 'smtp.gmail.com');
 define('MAIL_PORT', 587);
-define('MAIL_USER', 'TU_CORREO@gmail.com');
-define('MAIL_PASS', 'TU_APP_PASSWORD');
-define('MAIL_FROM', 'TU_CORREO@gmail.com');
+define('MAIL_USER', 'javi3rguerrero@gmail.com');
+define('MAIL_PASS', 'chzk iprz goay ynjk');
+define('MAIL_FROM', 'javi3rguerrero@gmail.com');
 define('MAIL_FROM_NAME', 'Monitoreo de Aire');
 ?>
