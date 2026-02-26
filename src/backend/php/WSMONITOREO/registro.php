@@ -2,47 +2,42 @@
 header('Content-Type: application/json');
 require_once 'conexion.php';
 
+// No requiere auth.php porque es un registro público para nuevos dueños de empresa
 $input = json_decode(file_get_contents("php://input"), true);
 
 $nombre    = trim($input['nombre'] ?? '');
 $email     = trim($input['email'] ?? '');
 $password  = $input['password'] ?? '';
-$pregunta  = trim($input['pregunta'] ?? '');
-$respuesta = trim($input['respuesta'] ?? '');
+$pregunta  = trim($input['pregunta_seguridad'] ?? '');
+$respuesta = trim($input['respuesta_seguridad'] ?? '');
 
 if ($nombre === '' || $email === '' || $password === '' || $pregunta === '' || $respuesta === '') {
-    echo json_encode(["success" => false, "message" => "Faltan datos"]);
+    echo json_encode(["success" => false, "message" => "Todos los campos son obligatorios para crear su empresa."]);
     exit;
 }
 
-// Solo permitir registro si NO existe ningún usuario (primer usuario será ADMIN)
-$count = $cn->query("SELECT COUNT(*) AS total FROM usuarios");
-if ($count) {
-    $row = $count->fetch_assoc();
-    if ((int)$row['total'] > 0) {
-        echo json_encode(["success" => false, "message" => "El registro está deshabilitado. Pide al ADMIN que cree tu cuenta."]);
-        exit;
-    }
-}
-
-$check = $cn->prepare("SELECT id FROM usuarios WHERE email = ? LIMIT 1");
+// VALIDACIÓN MULTI-EMPRESA:
+// Revisamos si este email ya existe como ADMIN
+$check = $cn->prepare("SELECT id FROM usuarios WHERE email = ? AND rol = 'ADMIN' LIMIT 1");
 $check->bind_param("s", $email);
 $check->execute();
-$check->store_result();
-if ($check->num_rows > 0) {
-    echo json_encode(["success" => false, "message" => "El correo ya está registrado"]);
+if ($check->get_result()->num_rows > 0) {
+    echo json_encode(["success" => false, "message" => "Ya existe una empresa registrada con este correo."]);
     exit;
 }
 
 $hash = password_hash($password, PASSWORD_BCRYPT);
-$rol = 'ADMIN';
+$api_token = bin2hex(random_bytes(16));
 
-$sql = $cn->prepare("INSERT INTO usuarios(nombre,email,password,pregunta_seguridad,respuesta_seguridad,rol) VALUES (?,?,?,?,?,?)");
-$sql->bind_param("ssssss", $nombre, $email, $hash, $pregunta, $respuesta, $rol);
+// Al ser el primer Admin de su propia empresa, su id_admin_creador es 0
+$sql = $cn->prepare("INSERT INTO usuarios (nombre, email, password, pregunta_seguridad, respuesta_seguridad, rol, api_token, id_admin_creador) VALUES (?, ?, ?, ?, ?, 'ADMIN', ?, 0)");
+$sql->bind_param("ssssss", $nombre, $email, $hash, $pregunta, $respuesta, $api_token);
 
 if ($sql->execute()) {
-    echo json_encode(["success" => true, "message" => "Usuario registrado", "id_usuario" => $sql->insert_id, "rol" => $rol]);
+    echo json_encode(["success" => true, "message" => "Empresa registrada con éxito. Inicie sesión para gestionar sus técnicos."]);
 } else {
-    echo json_encode(["success" => false, "message" => "Error al registrar"]);
+    echo json_encode(["success" => false, "message" => "Error al registrar: " . $cn->error]);
 }
+
+$cn->close();
 ?>
