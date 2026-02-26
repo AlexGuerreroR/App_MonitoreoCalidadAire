@@ -44,9 +44,7 @@ class HomeActivity : AppCompatActivity() {
         }
     }
 
-    // CAMBIO método para que los fragments HomeFragmen, DispositivosFragment informen
-    // cuál dispositivo está seleccionado. ConfigFragment leerá este valor para cargar/guardar
-    // umbrales por dispositivo.
+
     fun setDispositivoSeleccionado(id: Int) {
         idDispositivo = if (id > 0) id else 0
     }

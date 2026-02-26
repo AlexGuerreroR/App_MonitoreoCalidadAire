@@ -29,7 +29,6 @@ import kotlin.math.roundToInt
 class HomeFragment : Fragment() {
 
     private lateinit var spDispositivos: Spinner
-
     private val nombresDispositivos = ArrayList<String>()
     private val idsDispositivos = ArrayList<Int>()
     private val tokensDispositivos = ArrayList<String>()
@@ -68,58 +67,45 @@ class HomeFragment : Fragment() {
     override fun onAttach(context: Context) {
         super.onAttach(context)
         requestQueue = Volley.newRequestQueue(context.applicationContext)
-
         MqttManager.init(context)
         MqttManager.setOnMessageListener { payload ->
             try {
                 val obj = JSONObject(payload)
-
                 val tokenMsg = obj.optString("token", "")
                 val tokenSel = selectedToken ?: ""
-                if (tokenSel.isNotEmpty() && tokenMsg.isNotEmpty() && tokenMsg != tokenSel) {
-                    return@setOnMessageListener
-                }
+                if (tokenSel.isNotEmpty() && tokenMsg.isNotEmpty() && tokenMsg != tokenSel) return@setOnMessageListener
 
                 val co2 = obj.optDouble("co2", 0.0)
                 val temp = obj.optDouble("temperatura", 0.0)
                 val hum = obj.optDouble("humedad", 0.0)
+                val indiceESP32 = obj.optDouble("calidad_aire_indice", 100.0).toInt()
 
                 val hora = SimpleDateFormat("HH:mm:ss", Locale.getDefault()).format(Date())
                 lastMqttAt = System.currentTimeMillis()
 
                 activity?.runOnUiThread {
-                    actualizarDashboard(co2, temp, hum, "Tiempo real $hora")
+                    actualizarDashboard(co2, temp, hum, "Tiempo real $hora", indiceESP32)
                 }
-            } catch (_: Exception) {
-            }
+            } catch (_: Exception) {}
         }
     }
 
-    override fun onCreateView(
-        inflater: LayoutInflater,
-        container: ViewGroup?,
-        savedInstanceState: Bundle?
-    ): View {
+    override fun onCreateView(inflater: LayoutInflater, container: ViewGroup?, savedInstanceState: Bundle?): View {
         val v = inflater.inflate(R.layout.fragment_home, container, false)
-
         spDispositivos = v.findViewById(R.id.spDispositivosHome)
-
         viewCircleEstado = v.findViewById(R.id.viewCircleEstado)
         txtEstado = v.findViewById(R.id.txtEstado)
         txtEstado.textAlignment = View.TEXT_ALIGNMENT_CENTER
         txtEstado.gravity = Gravity.CENTER
         txtUltimaLectura = v.findViewById(R.id.txtUltimaLectura)
-
         txtCO2 = v.findViewById(R.id.txtCO2)
         txtTemp = v.findViewById(R.id.txtTemp)
         txtHum = v.findViewById(R.id.txtHum)
-
         txtTempConfort = v.findViewById(R.id.txtTempConfort)
         txtHumConfort = v.findViewById(R.id.txtHumConfort)
         txtCO2Objetivo = v.findViewById(R.id.txtCO2Objetivo)
         txtIndiceCalidad = v.findViewById(R.id.txtIndiceCalidad)
         txtIndiceNivel = v.findViewById(R.id.txtIndiceNivel)
-
         cardRiesgoSee = v.findViewById(R.id.cardRiesgoSee)
         txtRiesgoSee = v.findViewById(R.id.txtRiesgoSee)
         txtRecomendacion = v.findViewById(R.id.txtRecomendacion)
@@ -128,36 +114,17 @@ class HomeFragment : Fragment() {
         cargarDispositivos()
 
         spDispositivos.onItemSelectedListener = object : AdapterView.OnItemSelectedListener {
-            override fun onItemSelected(
-                parent: AdapterView<*>?,
-                view: View?,
-                position: Int,
-                id: Long
-            ) {
-                if (position !in tokensDispositivos.indices) return
-                if (position !in idsDispositivos.indices) return
-
-                // CAMBIO: guardar el ID del dispositivo seleccionado en la HomeActivity
-                val idSeleccionado = idsDispositivos[position]
-                (activity as? HomeActivity)?.setDispositivoSeleccionado(idSeleccionado)
-
-                val token = tokensDispositivos[position]
-                selectedToken = token
-
+            override fun onItemSelected(p: AdapterView<*>?, v: View?, pos: Int, id: Long) {
+                if (pos !in tokensDispositivos.indices) return
+                val idSel = idsDispositivos[pos]
+                (activity as? HomeActivity)?.setDispositivoSeleccionado(idSel)
+                selectedToken = tokensDispositivos[pos]
                 lastMqttAt = 0L
                 ponerEstadoEsperando()
-
-                if (token.isNotEmpty()) {
-                    MqttManager.subscribeToDevice(token)
-                }
+                selectedToken?.let { if (it.isNotEmpty()) MqttManager.subscribeToDevice(it) }
             }
-
-            override fun onNothingSelected(parent: AdapterView<*>?) {
-                // CAMBIO: si no hay selección, dejar dispositivo en 0
-                (activity as? HomeActivity)?.setDispositivoSeleccionado(0)
-            }
+            override fun onNothingSelected(p: AdapterView<*>?) { (activity as? HomeActivity)?.setDispositivoSeleccionado(0) }
         }
-
         return v
     }
 
@@ -167,237 +134,138 @@ class HomeFragment : Fragment() {
         selectedToken?.let { if (it.isNotEmpty()) MqttManager.subscribeToDevice(it) }
     }
 
-    override fun onPause() {
-        super.onPause()
-        stopWatchdog()
-    }
+    override fun onPause() { super.onPause(); stopWatchdog() }
 
     private fun startWatchdog() {
         if (watchdogRunnable != null) return
-
         watchdogRunnable = object : Runnable {
             override fun run() {
                 val now = System.currentTimeMillis()
-
-                if (selectedToken.isNullOrEmpty()) {
-                    watchdogHandler.postDelayed(this, 1000)
-                    return
-                }
-
-                if (lastMqttAt == 0L) {
-                    marcarSinSenal("Esperando datos (?)")
-                } else if (now - lastMqttAt > MQTT_TIMEOUT_MS) {
-                    marcarSinSenal("Dispositivo sin señal")
-                }
-
+                if (selectedToken.isNullOrEmpty()) { watchdogHandler.postDelayed(this, 1000); return }
+                if (lastMqttAt == 0L) marcarSinSenal("Esperando datos (?)")
+                else if (now - lastMqttAt > MQTT_TIMEOUT_MS) marcarSinSenal("Sin señal")
                 watchdogHandler.postDelayed(this, 1000)
             }
         }
-
         watchdogHandler.post(watchdogRunnable!!)
     }
 
-    private fun stopWatchdog() {
-        watchdogRunnable?.let { watchdogHandler.removeCallbacks(it) }
-        watchdogRunnable = null
-    }
+    private fun stopWatchdog() { watchdogRunnable?.let { watchdogHandler.removeCallbacks(it) }; watchdogRunnable = null }
 
     private fun ponerEstadoEsperando() {
-        txtEstado.text = "Esperando datos (?)"
-        txtUltimaLectura.text = "Última lectura: --"
-        txtCO2.text = "--"
-        txtTemp.text = "--"
-        txtHum.text = "--"
-        txtIndiceCalidad.text = "--"
-        txtIndiceNivel.text = "--"
+        txtEstado.text = "Sincronizando..."
+        txtUltimaLectura.text = "Esperando lectura..."
+        txtCO2.text = "--"; txtTemp.text = "--"; txtHum.text = "--"
+        txtIndiceCalidad.text = "--"; txtIndiceNivel.text = "--"
         txtRiesgoSee.text = "--"
-        txtRecomendacion.text = "Cuando llegue un dato, se actualizará aquí."
+        txtRecomendacion.text = "Conectando con el sensor..."
         viewCircleEstado.setBackgroundResource(R.drawable.bg_circle_warn)
     }
 
-    private fun marcarSinSenal(mensaje: String) {
-        txtEstado.text = mensaje
-        txtUltimaLectura.text = "Última lectura: --"
-        txtCO2.text = "--"
-        txtTemp.text = "--"
-        txtHum.text = "--"
-        txtIndiceCalidad.text = "--"
-        txtIndiceNivel.text = "--"
-        txtRiesgoSee.text = "--"
-        txtRecomendacion.text = "No hay datos recientes del dispositivo."
+    private fun marcarSinSenal(m: String) {
+        txtEstado.text = m; txtUltimaLectura.text = "Offline"
         viewCircleEstado.setBackgroundResource(R.drawable.bg_circle_warn)
     }
 
     private fun cargarDispositivos() {
-        if (idUsuario == 0) {
-            txtEstado.text = "Sin usuario"
-            return
-        }
-
+        if (idUsuario == 0) return
         val rol = Session.getRole(requireContext())
-        val idConsulta = if (rol == "ADMIN" || rol == "SUPERVISOR") 0 else idUsuario
-
-        val url = ApiConfig.BASE_URL +
-                "listar_dispositivos.php?id_usuario=$idConsulta&ts=${System.currentTimeMillis()}"
-
-        val request = object : JsonArrayRequest(
-            Request.Method.GET, url, null,
-            { response ->
-                nombresDispositivos.clear()
-                idsDispositivos.clear()
-                tokensDispositivos.clear()
-
-                for (i in 0 until response.length()) {
-                    val obj = response.getJSONObject(i)
-                    val id = obj.getInt("id")
-                    val token = obj.optString("token_dispositivo", "")
-                    val nombre = obj.getString("nombre_dispositivo")
-                    val ubicacion = obj.optString("ubicacion", "")
-
-                    idsDispositivos.add(id)
-                    tokensDispositivos.add(token)
-
-                    val label = if (ubicacion.isNotEmpty()) "$nombre - $ubicacion" else nombre
-                    nombresDispositivos.add(label)
-                }
-
-                if (nombresDispositivos.isEmpty()) {
-                    nombresDispositivos.add("Sin dispositivos")
-                    // CAMBIO: sin dispositivos reales, dejar el seleccionado en 0
-                    (activity as? HomeActivity)?.setDispositivoSeleccionado(0)
-                }
-
-                val adapter = ArrayAdapter(
-                    requireContext(),
-                    android.R.layout.simple_spinner_item,
-                    nombresDispositivos
-                )
-                adapter.setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item)
-                spDispositivos.adapter = adapter
-
-                // CAMBIO: al cargar por primera vez, fijar el primer dispositivo como seleccionado
-                if (idsDispositivos.isNotEmpty()) {
-                    (activity as? HomeActivity)?.setDispositivoSeleccionado(idsDispositivos[0])
-                }
-
-                if (tokensDispositivos.isNotEmpty()) {
-                    val firstToken = tokensDispositivos[0]
-                    selectedToken = firstToken
-                    if (firstToken.isNotEmpty()) {
-                        MqttManager.subscribeToDevice(firstToken)
-                    }
-                }
-
-                lastMqttAt = 0L
-                ponerEstadoEsperando()
-            },
-            { error ->
-                txtEstado.text = "Error al cargar dispositivos: ${error.message}"
+        val idC = if (rol == "ADMIN" || rol == "SUPERVISOR") 0 else idUsuario
+        val url = ApiConfig.BASE_URL + "listar_dispositivos.php?id_usuario=$idC&ts=${System.currentTimeMillis()}"
+        val request = object : JsonArrayRequest(Request.Method.GET, url, null, { response ->
+            nombresDispositivos.clear(); idsDispositivos.clear(); tokensDispositivos.clear()
+            for (i in 0 until response.length()) {
+                val obj = response.getJSONObject(i)
+                idsDispositivos.add(obj.getInt("id"))
+                tokensDispositivos.add(obj.optString("token_dispositivo", ""))
+                val label = if (obj.optString("ubicacion", "").isNotEmpty()) "${obj.getString("nombre_dispositivo")} - ${obj.getString("ubicacion")}" else obj.getString("nombre_dispositivo")
+                nombresDispositivos.add(label)
             }
-        ) {
-            override fun getHeaders(): MutableMap<String, String> {
-                return Session.authHeaders(requireContext())
+            val adapter = ArrayAdapter(requireContext(), android.R.layout.simple_spinner_item, nombresDispositivos)
+            adapter.setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item)
+            spDispositivos.adapter = adapter
+            if (idsDispositivos.isNotEmpty()) {
+                (activity as? HomeActivity)?.setDispositivoSeleccionado(idsDispositivos[0])
+                selectedToken = tokensDispositivos[0]
+                selectedToken?.let { if (it.isNotEmpty()) MqttManager.subscribeToDevice(it) }
             }
-        }
-
-        request.setShouldCache(false)
-        request.retryPolicy = DefaultRetryPolicy(5000, 0, DefaultRetryPolicy.DEFAULT_BACKOFF_MULT)
+        }, { }) { override fun getHeaders() = Session.authHeaders(requireContext()) }
         requestQueue.add(request)
     }
 
-    private fun actualizarDashboard(co2: Double, temp: Double, hum: Double, fecha: String) {
+    // LÓGICA DE DASHBOARD SUSTENTADA (ISO 7730 / ASHRAE 62.1)
+    private fun actualizarDashboard(co2: Double, temp: Double, hum: Double, fecha: String, indiceReal: Int) {
         txtCO2.text = "${co2.roundToInt()} ppm"
         txtTemp.text = formatearTempConUnidad(temp)
         txtHum.text = "${hum.roundToInt()} %"
-        txtUltimaLectura.text = "Última lectura: $fecha"
+        txtUltimaLectura.text = "Lectura: $fecha"
+        txtIndiceCalidad.text = "$indiceReal / 100"
 
-        val (estado, bgRes) = when {
-            co2 <= 800 -> "Buena" to R.drawable.bg_circle_good
-            co2 <= 1200 -> "Aceptable" to R.drawable.bg_circle_warn
-            else -> "Mala" to R.drawable.bg_circle_bad
+        // Niveles de Calidad de Aire (IAQ)
+        val (nivel, bgRes) = when {
+            indiceReal >= 85 -> "Excelente" to R.drawable.bg_circle_good
+            indiceReal >= 70 -> "Buena" to R.drawable.bg_circle_good
+            indiceReal >= 50 -> "Moderada" to R.drawable.bg_circle_warn
+            else -> "Crítica" to R.drawable.bg_circle_bad
         }
-        txtEstado.text = estado
+        txtEstado.text = nivel
+        txtIndiceNivel.text = nivel
         viewCircleEstado.setBackgroundResource(bgRes)
 
-        val confortTemp = when {
-            temp < 21 -> "Frío"
-            temp <= 27 -> "Óptimo"
-            else -> "Cálido"
+        // Confort Térmico e Higrometría
+        txtTempConfort.text = when {
+            temp < 20 -> "Frío"
+            temp <= 26 -> "Confortable"
+            else -> "Caluroso"
         }
-        txtTempConfort.text = confortTemp
-
-        val confortHum = when {
-            hum < 40 -> "Seco"
+        txtHumConfort.text = when {
+            hum < 30 -> "Muy Seco"
             hum <= 60 -> "Óptimo"
             else -> "Húmedo"
         }
-        txtHumConfort.text = confortHum
+        txtCO2Objetivo.text = if (co2 <= 800) "Seguro (<800 ppm)" else "Alerta (>800 ppm)"
 
-        txtCO2Objetivo.text = if (co2 <= 800) "Objetivo: OK (< 800 ppm)" else "Objetivo: bajar a < 800 ppm"
-
-        val (indice, nivelIndice) = calcularIndiceCalidad(co2)
-        txtIndiceCalidad.text = "$indice / 100"
-        txtIndiceNivel.text = nivelIndice
-
-        val (nivelSee, colorSee) = calcularRiesgoSee(co2, temp, hum)
+        val (nivelSee, colorSee) = calcularRiesgoSalud(co2, temp, hum)
         txtRiesgoSee.text = nivelSee
         cardRiesgoSee.setCardBackgroundColor(colorSee)
-
-        txtRecomendacion.text = generarRecomendacion(co2, temp, hum)
+        txtRecomendacion.text = generarRecomendacionTecnica(co2, temp, hum)
     }
 
-    private fun formatearTempConUnidad(tempC: Double): String {
-        val prefs = requireContext().getSharedPreferences("app_config", Context.MODE_PRIVATE)
-
-        // Lee la unidad por dispositivo (misma lógica que ConfigFragment)
-        val keyUnidad = if (idDispositivo > 0) "unidad_temp_${idDispositivo}" else "unidad_temp"
-        val unidad = prefs.getString(keyUnidad, "C") ?: "C"
-
-        return if (unidad == "F") {
-            val tempF = tempC * 9.0 / 5.0 + 32.0
-            "${tempF.roundToInt()} °F"
-        } else {
-            "${tempC.roundToInt()} °C"
-        }
+    private fun formatearTempConUnidad(t: Double): String {
+        val p = requireContext().getSharedPreferences("app_config", Context.MODE_PRIVATE)
+        val u = p.getString(if (idDispositivo > 0) "unidad_temp_$idDispositivo" else "unidad_temp", "C") ?: "C"
+        return if (u == "F") "${(t * 9.0 / 5.0 + 32.0).roundToInt()} °F" else "${t.roundToInt()} °C"
     }
 
-
-    private fun calcularIndiceCalidad(co2: Double): Pair<Int, String> {
-        val min = 400.0
-        val max = 2000.0
-        val clamped = co2.coerceIn(min, max)
-        val score = ((max - clamped) / (max - min) * 100.0).coerceIn(0.0, 100.0).roundToInt()
-
-        val nivel = when {
-            score >= 70 -> "Bueno"
-            score >= 40 -> "Moderado"
-            else -> "Malo"
-        }
-        return score to nivel
-    }
-
-    private fun calcularRiesgoSee(co2: Double, temp: Double, hum: Double): Pair<String, Int> {
-        var puntos = 0
-        if (co2 > 800) puntos++
-        if (temp < 20 || temp > 27) puntos++
-        if (hum < 40 || hum > 60) puntos++
-
+    private fun calcularRiesgoSalud(co2: Double, t: Double, h: Double): Pair<String, Int> {
+        var s = 0
+        if (co2 > 1000) s += 2 else if (co2 > 800) s += 1
+        if (t < 18 || t > 28) s += 1
+        if (h < 30 || h > 70) s += 1
         return when {
-            puntos <= 0 -> "Bajo" to Color.parseColor("#E8F5E9")
-            puntos == 1 || puntos == 2 -> "Medio" to Color.parseColor("#FFFDE7")
+            s == 0 -> "Bajo" to Color.parseColor("#E8F5E9")
+            s <= 2 -> "Medio" to Color.parseColor("#FFFDE7")
             else -> "Alto" to Color.parseColor("#FFEBEE")
         }
     }
 
-    private fun generarRecomendacion(co2: Double, temp: Double, hum: Double): String {
-        val aireOK = co2 <= 800
-        val tempOK = temp in 21.0..27.0
-        val humOK = hum in 40.0..60.0
-
+    private fun generarRecomendacionTecnica(co2: Double, t: Double, h: Double): String {
         return when {
-            aireOK && tempOK && humOK -> "Todo OK. Mantén ventilación natural."
-            co2 <= 1200 -> "Ventila 5–10 minutos abriendo puertas/ventanas."
-            else -> "Ventila urgentemente la zona (apertura total o extracción)."
+            // Prioridad 1: Seguridad Respiratoria (CO2)
+            co2 > 1500 -> "Crítico: Active ventilación forzada o evacue el área hasta renovar el aire."
+            co2 > 1000 -> "Aire deficiente: Incremente la ventilación abriendo puertas y ventanas totalmente."
+            co2 > 800 -> "Moderado: Realice una apertura parcial de ventanas para renovar el flujo de aire."
+
+            // Prioridad 2: Higrometría (Humedad) - Acciones Correctivas
+            h > 70 -> "Humedad Crítica: Use deshumidificadores o aire acondicionado para reducir riesgo de moho."
+            h < 30 -> "Humedad Muy Baja: Use un humidificador o coloque recipientes con agua para evitar sequedad."
+
+            // Prioridad 3: Confort Térmico (Temperatura)
+            t > 30 -> "Calor Excesivo: Reduzca la carga térmica; use ventiladores o sistemas de refrigeración."
+            t < 16 -> "Frío Intenso: Incremente la calefacción o mejore el aislamiento térmico del recinto."
+
+            // Estado Ideal
+            else -> "Condiciones Óptimas: Calidad de aire estable. No se requieren acciones correctivas."
         }
     }
 }
