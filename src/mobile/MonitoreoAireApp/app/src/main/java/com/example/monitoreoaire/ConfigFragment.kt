@@ -67,6 +67,8 @@ class ConfigFragment : Fragment() {
 
         if (rolUsuario == "TECNICO") {
             btnGuardar.isEnabled = false
+            // NUEVO: Ocultamos completamente el botón de Reset para el Técnico
+            itemResetDispositivo.visibility = View.GONE
         }
 
         itemPerfil.setOnClickListener {
