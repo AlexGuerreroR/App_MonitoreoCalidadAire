@@ -1,5 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
     android:orientation="vertical"
     android:gravity="center"
     android:padding="24dp"
@@ -11,8 +12,8 @@
         android:text="Monitoreo de Aire"
         android:textSize="26sp"
         android:textStyle="bold"
-        android:textColor="#0D47A1"
-        android:layout_marginBottom="24dp"
+        android:textColor="#4A4A4A"
+        android:layout_marginBottom="32dp"
         android:layout_width="wrap_content"
         android:layout_height="wrap_content" />
 
@@ -23,34 +24,66 @@
         android:layout_height="wrap_content"
         android:layout_marginBottom="12dp" />
 
-    <EditText
-        android:id="@+id/edtPassword"
-        android:hint="Contraseña"
-        android:inputType="textPassword"
+    <com.google.android.material.textfield.TextInputLayout
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:layout_marginBottom="16dp" />
+        android:layout_marginBottom="24dp"
+        app:passwordToggleEnabled="true"
+        app:hintEnabled="false"
+        style="@style/Widget.Design.TextInputLayout">
+
+        <EditText
+            android:id="@+id/edtPassword"
+            android:hint="Contraseña"
+            android:inputType="textPassword"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content" />
+    </com.google.android.material.textfield.TextInputLayout>
 
     <Button
         android:id="@+id/btnLogin"
         android:text="Iniciar sesión"
+        android:layout_marginTop="16dp"
         android:layout_width="match_parent"
+        android:layout_height="wrap_content" />
+
+
+
+
+    <LinearLayout
+        android:layout_width="wrap_content"
         android:layout_height="wrap_content"
-        android:backgroundTint="#1E88E5" />
+        android:orientation="horizontal"
+        android:gravity="center_vertical"
+        android:layout_marginTop="20dp"
+        android:layout_gravity="center">
+
+
+        <TextView
+            android:id="@+id/txtTerminosLink"
+            android:layout_width="260dp"
+            android:layout_height="wrap_content"
+            android:layout_marginStart="8dp"
+            android:text="Al registrarte, aceptas nuestros Términos, Condiciones y Políticas de Privacidad"
+            android:textSize="14sp"
+            android:gravity="start"
+            android:clickable="true"
+            android:focusable="true" />
+    </LinearLayout>
 
     <TextView
         android:id="@+id/txtIrRegistro"
         android:text="Crear cuenta"
-        android:textColor="#1E88E5"
-        android:layout_marginTop="16dp"
+        android:textColor="#4A4A4A"
+        android:layout_marginTop="24dp"
         android:layout_width="wrap_content"
         android:layout_height="wrap_content" />
 
     <TextView
         android:id="@+id/txtOlvide"
         android:text="Olvidé mi contraseña"
-        android:textColor="#1E88E5"
-        android:layout_marginTop="8dp"
+        android:textColor="#4A4A4A"
+        android:layout_marginTop="12dp"
         android:layout_width="wrap_content"
         android:layout_height="wrap_content" />
 </LinearLayout>

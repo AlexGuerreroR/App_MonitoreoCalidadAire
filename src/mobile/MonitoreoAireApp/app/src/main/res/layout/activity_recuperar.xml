@@ -1,17 +1,17 @@
 <?xml version="1.0" encoding="utf-8"?>
 <LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
     android:orientation="vertical"
-    android:padding="20dp"
-    android:background="#FFF3E0"
-    android:gravity="center_horizontal"
+    android:gravity="center"
+    android:padding="24dp"
+    android:background="#E3F2FD"
     android:layout_width="match_parent"
     android:layout_height="match_parent">
 
-    <TextView
+<TextView
         android:text="Recuperar contraseña"
         android:textSize="22sp"
         android:textStyle="bold"
-        android:textColor="#EF6C00"
         android:layout_marginBottom="16dp"
         android:layout_width="wrap_content"
         android:layout_height="wrap_content" />
@@ -19,26 +19,40 @@
     <EditText
         android:id="@+id/edtEmailRec"
         android:hint="Correo"
+        android:inputType="textEmailAddress"
         android:layout_width="match_parent"
-        android:layout_height="wrap_content" />
+        android:layout_height="wrap_content"
+        android:layout_marginBottom="10dp" />
 
     <EditText
         android:id="@+id/edtRespuestaRec"
         android:hint="Respuesta de seguridad"
         android:layout_width="match_parent"
-        android:layout_height="wrap_content" />
+        android:layout_height="wrap_content"
+        android:layout_marginBottom="10dp" />
 
-    <EditText
-        android:id="@+id/edtNuevaPass"
-        android:hint="Nueva contraseña"
-        android:inputType="textPassword"
+    <com.google.android.material.textfield.TextInputLayout
         android:layout_width="match_parent"
-        android:layout_height="wrap_content" />
+        android:layout_height="wrap_content"
+        android:layout_marginBottom="10dp"
+        app:passwordToggleEnabled="true"
+        style="@style/Widget.Design.TextInputLayout"
+        app:hintEnabled="false">
+
+
+
+        <EditText
+            android:id="@+id/edtNuevaPass"
+            android:hint="Nueva contraseña"
+            android:inputType="textPassword"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginBottom="16dp"/>
+    </com.google.android.material.textfield.TextInputLayout>
 
     <Button
         android:id="@+id/btnRecuperar"
         android:text="Actualizar contraseña"
-        android:backgroundTint="#FB8C00"
         android:layout_marginTop="16dp"
         android:layout_width="match_parent"
         android:layout_height="wrap_content" />

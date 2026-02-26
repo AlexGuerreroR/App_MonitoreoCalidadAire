@@ -17,7 +17,9 @@
         <activity android:name=".RecuperarActivity" />
         <activity android:name=".RegistroActivity" />
         <activity android:name=".HomeActivity" />
+        <activity android:name=".GestionCuentasActivity" />
         <activity android:name=".PerfilActivity" />
+        <activity android:name=".TerminosActivity" />
         <activity android:name=".MainActivity"
             android:exported="true">
 

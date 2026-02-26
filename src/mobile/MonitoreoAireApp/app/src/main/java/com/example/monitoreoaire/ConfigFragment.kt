@@ -28,7 +28,7 @@ class ConfigFragment : Fragment() {
     private lateinit var btnGuardar: Button
 
     private lateinit var itemPerfil: View
-    private lateinit var itemCrearCuenta: View
+    private lateinit var itemGestionarCuentas: View // Mantenemos este para el ADMIN
     private lateinit var itemCerrarSesion: View
     private lateinit var itemResetDispositivo: View
 
@@ -58,35 +58,42 @@ class ConfigFragment : Fragment() {
         btnGuardar = view.findViewById(R.id.btnGuardarConfig)
 
         itemPerfil = view.findViewById(R.id.itemPerfil)
-        itemCrearCuenta = view.findViewById(R.id.itemCrearCuenta)
+        itemGestionarCuentas = view.findViewById(R.id.itemGestionarCuentas)
         itemCerrarSesion = view.findViewById(R.id.itemCerrarSesion)
         itemResetDispositivo = view.findViewById(R.id.itemResetDispositivo)
 
         val sessionPrefs = requireContext().getSharedPreferences("sesion", Context.MODE_PRIVATE)
         val rolUsuario = sessionPrefs.getString("rol", "SUPERVISOR") ?: "SUPERVISOR"
 
+        // --- LÓGICA DE ROLES: TÉCNICO ---
         if (rolUsuario == "TECNICO") {
             btnGuardar.isEnabled = false
+            itemResetDispositivo.visibility = View.GONE
         }
 
         itemPerfil.setOnClickListener {
             startActivity(Intent(requireContext(), PerfilActivity::class.java))
         }
 
+        // --- LÓGICA DE ROLES: ADMIN ---
+        // Se elimina la lógica de itemCrearCuenta de aquí, ya que ahora
+        // esa función vive dentro de GestionCuentasActivity.
         if (rolUsuario == "ADMIN") {
-            itemCrearCuenta.visibility = View.VISIBLE
-            itemCrearCuenta.setOnClickListener {
-                startActivity(Intent(requireContext(), RegistroActivity::class.java))
+            itemGestionarCuentas.visibility = View.VISIBLE
+            itemGestionarCuentas.setOnClickListener {
+                // Ahora este botón abre la pantalla de gestión, donde estará el botón "Crear cuenta"
+                val intent = Intent(requireContext(), GestionCuentasActivity::class.java)
+                startActivity(intent)
             }
         } else {
-            itemCrearCuenta.visibility = View.GONE
+            itemGestionarCuentas.visibility = View.GONE
         }
 
         itemCerrarSesion.setOnClickListener { confirmarCerrarSesion() }
         itemResetDispositivo.setOnClickListener { confirmarFactoryReset() }
 
+        // --- CARGA DE CONFIGURACIÓN LOCAL ---
         val prefs = requireContext().getSharedPreferences("app_config", Context.MODE_PRIVATE)
-
         val keyUnidad = prefKey("unidad_temp")
         val keyCo2 = prefKey("umbral_co2")
         val keyTemp = prefKey("umbral_temp")
@@ -107,7 +114,6 @@ class ConfigFragment : Fragment() {
         edtUmbralIndice.setText(umbralIndice.toString())
 
         cargarUmbralesServidor()
-
         btnGuardar.setOnClickListener { guardarConfig() }
     }
 
@@ -122,7 +128,6 @@ class ConfigFragment : Fragment() {
         }
 
         val unidadSeleccionada = if (rbFahrenheit.isChecked) "F" else "C"
-
         val txtCo2 = edtUmbralCO2.text.toString().trim()
         val txtTemp = edtUmbralTemp.text.toString().trim()
         val txtHum = edtUmbralHum.text.toString().trim()
@@ -174,7 +179,6 @@ class ConfigFragment : Fragment() {
         }
 
         val url = BASE_URL + "guardar_umbrales.php"
-
         val queue = Volley.newRequestQueue(requireContext())
         val request = object : StringRequest(
             Request.Method.POST,
@@ -184,43 +188,31 @@ class ConfigFragment : Fragment() {
                     val json = JSONObject(response)
                     val ok = json.optBoolean("success", false)
                     val msg = json.optString("message", "")
-                    Toast.makeText(
-                        requireContext(),
-                        if (ok) "Umbrales guardados" else "Error: $msg",
-                        Toast.LENGTH_SHORT
-                    ).show()
+                    Toast.makeText(requireContext(), if (ok) "Umbrales guardados" else "Error: $msg", Toast.LENGTH_SHORT).show()
                 } catch (_: Exception) {
                     Toast.makeText(requireContext(), "Error al procesar respuesta", Toast.LENGTH_SHORT).show()
                 }
             },
-            {
-                Toast.makeText(requireContext(), "Error de red al guardar umbrales", Toast.LENGTH_SHORT).show()
-            }
+            { Toast.makeText(requireContext(), "Error de red al guardar umbrales", Toast.LENGTH_SHORT).show() }
         ) {
-            override fun getHeaders(): MutableMap<String, String> {
-                return Session.authHeaders(requireContext())
-            }
-
+            override fun getHeaders(): MutableMap<String, String> = Session.authHeaders(requireContext())
             override fun getParams(): MutableMap<String, String> {
-                val params = HashMap<String, String>()
-                params["id_usuario"] = idUsuario.toString()
-                params["id_dispositivo"] = idDispositivo.toString()
-                params["umbral_co2"] = co2.toString()
-                params["umbral_temp"] = temp.toString()
-                params["umbral_hum"] = hum.toString()
-                params["umbral_indice"] = indice.toString()
-                return params
+                return hashMapOf(
+                    "id_usuario" to idUsuario.toString(),
+                    "id_dispositivo" to idDispositivo.toString(),
+                    "umbral_co2" to co2.toString(),
+                    "umbral_temp" to temp.toString(),
+                    "umbral_hum" to hum.toString(),
+                    "umbral_indice" to indice.toString()
+                )
             }
         }
-
         queue.add(request)
     }
 
     private fun cargarUmbralesServidor() {
         if (idUsuario <= 0 || idDispositivo <= 0) return
-
         val url = BASE_URL + "obtener_umbrales.php"
-
         val queue = Volley.newRequestQueue(requireContext())
         val request = object : StringRequest(
             Request.Method.POST,
@@ -230,7 +222,6 @@ class ConfigFragment : Fragment() {
                     val json = JSONObject(response)
                     if (json.optBoolean("success", false)) {
                         val data = json.getJSONObject("data")
-
                         val co2 = data.optDouble("CO2", edtUmbralCO2.text.toString().toDoubleOrNull() ?: 1000.0)
                         val temp = data.optDouble("TEMP", edtUmbralTemp.text.toString().toDoubleOrNull() ?: 27.0)
                         val hum = data.optDouble("HUM", edtUmbralHum.text.toString().toDoubleOrNull() ?: 65.0)
@@ -241,24 +232,15 @@ class ConfigFragment : Fragment() {
                         edtUmbralHum.setText(hum.toInt().toString())
                         edtUmbralIndice.setText(indice.toInt().toString())
                     }
-                } catch (_: Exception) {
-                }
+                } catch (_: Exception) {}
             },
-            {
-            }
+            {}
         ) {
-            override fun getHeaders(): MutableMap<String, String> {
-                return Session.authHeaders(requireContext())
-            }
-
+            override fun getHeaders(): MutableMap<String, String> = Session.authHeaders(requireContext())
             override fun getParams(): MutableMap<String, String> {
-                val params = HashMap<String, String>()
-                params["id_usuario"] = idUsuario.toString()
-                params["id_dispositivo"] = idDispositivo.toString()
-                return params
+                return hashMapOf("id_usuario" to idUsuario.toString(), "id_dispositivo" to idDispositivo.toString())
             }
         }
-
         queue.add(request)
     }
 
@@ -274,7 +256,6 @@ class ConfigFragment : Fragment() {
     private fun cerrarSesion() {
         val sessionPrefs = requireContext().getSharedPreferences("sesion", Context.MODE_PRIVATE)
         sessionPrefs.edit().clear().apply()
-
         val intent = Intent(requireContext(), MainActivity::class.java)
         intent.flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK
         startActivity(intent)
@@ -294,103 +275,52 @@ class ConfigFragment : Fragment() {
             Toast.makeText(requireContext(), "Selecciona un dispositivo", Toast.LENGTH_LONG).show()
             return
         }
-
         val queue = Volley.newRequestQueue(requireContext())
         val urlIp = "${ApiConfig.ULTIMA_LECTURA_URL}?id_dispositivo=$idDispositivo"
-
         val reqIp = object : StringRequest(
-            Request.Method.GET,
-            urlIp,
+            Request.Method.GET, urlIp,
             { resp ->
                 val ip = try {
-                    val json = org.json.JSONObject(resp)
+                    val json = JSONObject(resp)
                     val data = json.optJSONObject("data")
                     data?.optString("ip_dispositivo", "")?.trim().orEmpty()
-                } catch (e: Exception) {
-                    ""
-                }
-
+                } catch (e: Exception) { "" }
                 val ipFinal = if (ip.isNotEmpty()) ip else "192.168.4.1"
                 enviarResetDirecto(queue, ipFinal)
             },
             { error ->
                 error.printStackTrace()
-                Toast.makeText(
-                    requireContext(),
-                    "No se pudo obtener la IP del dispositivo desde el servidor",
-                    Toast.LENGTH_LONG
-                ).show()
+                Toast.makeText(requireContext(), "No se pudo obtener la IP del servidor", Toast.LENGTH_LONG).show()
             }
         ) {
-            override fun getHeaders(): MutableMap<String, String> {
-                return Session.authHeaders(requireContext())
-            }
+            override fun getHeaders(): MutableMap<String, String> = Session.authHeaders(requireContext())
         }
-
         queue.add(reqIp)
     }
 
     private fun enviarResetDirecto(queue: com.android.volley.RequestQueue, ipEsp: String) {
         val url = "http://$ipEsp/factory_reset"
-
-        val request = StringRequest(
-            Request.Method.GET,
-            url,
-            { _ ->
-                Toast.makeText(
-                    requireContext(),
-                    "Factory reset enviado a $ipEsp. El dispositivo se reiniciará y entrará en modo AP.",
-                    Toast.LENGTH_LONG
-                ).show()
-            },
-            { error ->
-                error.printStackTrace()
-                Toast.makeText(
-                    requireContext(),
-                    "Error al contactar al dispositivo en $ipEsp",
-                    Toast.LENGTH_LONG
-                ).show()
-            }
+        val request = StringRequest(Request.Method.GET, url,
+            { Toast.makeText(requireContext(), "Factory reset enviado a $ipEsp", Toast.LENGTH_LONG).show() },
+            { Toast.makeText(requireContext(), "Error al contactar dispositivo", Toast.LENGTH_LONG).show() }
         )
-
         queue.add(request)
     }
 
     companion object {
-
-        fun getUnidadTemperatura(context: Context): String {
-            val prefs = context.getSharedPreferences("app_config", Context.MODE_PRIVATE)
-            return prefs.getString("unidad_temp", "C") ?: "C"
-        }
-
-        fun getUnidadTemperatura(context: Context, idDispositivo: Int): String {
+        fun getUnidadTemperatura(context: Context, idDispositivo: Int = 0): String {
             val prefs = context.getSharedPreferences("app_config", Context.MODE_PRIVATE)
             val key = if (idDispositivo > 0) "unidad_temp_${idDispositivo}" else "unidad_temp"
             return prefs.getString(key, "C") ?: "C"
         }
 
-        fun getUmbralCo2(context: Context): Int {
-            val prefs = context.getSharedPreferences("app_config", Context.MODE_PRIVATE)
-            return prefs.getInt("umbral_co2", 1000)
-        }
-
-        fun getUmbralCo2(context: Context, idDispositivo: Int): Int {
+        fun getUmbralCo2(context: Context, idDispositivo: Int = 0): Int {
             val prefs = context.getSharedPreferences("app_config", Context.MODE_PRIVATE)
             val key = if (idDispositivo > 0) "umbral_co2_${idDispositivo}" else "umbral_co2"
             return prefs.getInt(key, 1000)
         }
 
-        fun formatearTemperatura(celsius: Float, context: Context): String {
-            val unidad = getUnidadTemperatura(context)
-            return if (unidad == "F") {
-                val f = celsius * 9f / 5f + 32f
-                String.format(Locale.getDefault(), "%.1f °F", f)
-            } else {
-                String.format(Locale.getDefault(), "%.1f °C", celsius)
-            }
-        }
-
-        fun formatearTemperatura(celsius: Float, context: Context, idDispositivo: Int): String {
+        fun formatearTemperatura(celsius: Float, context: Context, idDispositivo: Int = 0): String {
             val unidad = getUnidadTemperatura(context, idDispositivo)
             return if (unidad == "F") {
                 val f = celsius * 9f / 5f + 32f

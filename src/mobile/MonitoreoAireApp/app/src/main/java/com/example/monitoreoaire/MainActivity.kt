@@ -59,6 +59,13 @@ class MainActivity : AppCompatActivity() {
         txtOlvide.setOnClickListener {
             startActivity(Intent(this, RecuperarActivity::class.java))
         }
+//Terminos y condiciones
+        val txtTerminos = findViewById<TextView>(R.id.txtTerminosLink)
+        txtTerminos.setOnClickListener {
+            // Aquí puedes abrir una nueva Activity o un navegador con el PDF/Web
+            val intent = Intent(this, TerminosActivity::class.java)
+            startActivity(intent)
+        }
     }
 
     private fun hacerLogin() {
