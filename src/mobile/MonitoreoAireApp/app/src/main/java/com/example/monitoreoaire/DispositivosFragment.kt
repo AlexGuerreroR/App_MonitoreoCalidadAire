@@ -39,10 +39,8 @@ class DispositivosFragment : Fragment() {
             btnAgregar.visibility = View.GONE
         }
 
-        // Botón para agregar dispositivo (igual que antes)
         btnAgregar.setOnClickListener { mostrarDialogoAgregar() }
 
-        // Al tocar un dispositivo ahora mostramos menú: Configurar / Eliminar
         listView.setOnItemClickListener { _, _, position, _ ->
             if (position in idsDispositivos.indices) {
                 mostrarOpcionesDispositivo(position)
@@ -53,8 +51,6 @@ class DispositivosFragment : Fragment() {
 
         return v
     }
-
-    // ========== CARGAR DISPOSITIVOS DESDE PHP ==========
 
     private fun cargarDispositivos() {
         if (idUsuario == 0) return
@@ -88,7 +84,6 @@ class DispositivosFragment : Fragment() {
                     listaTexto.add(linea)
                 }
 
-                // Usamos el layout con tarjeta
                 val adapter = ArrayAdapter(
                     requireContext(),
                     R.layout.item_dispositivo,
@@ -109,30 +104,93 @@ class DispositivosFragment : Fragment() {
         Volley.newRequestQueue(requireContext()).add(request)
     }
 
-    // ========== MENÚ: CONFIGURAR / ELIMINAR ==========
-
     private fun mostrarOpcionesDispositivo(position: Int) {
         val nombre = listaTexto[position].substringBefore("\n")
         val rolUsuario = Session.getRole(requireContext())
 
-        // Si es TECNICO, no mostramos el menú de opciones críticas
         if (rolUsuario == "TECNICO") {
             Toast.makeText(requireContext(), "Acceso limitado: Solo lectura para técnicos", Toast.LENGTH_SHORT).show()
             return
         }
 
-        val opciones = arrayOf("Configurar red", "Eliminar dispositivo")
+        // Nueva opción "Cambiar nombre" agregada al menú
+        val opciones = arrayOf("Configurar red", "Cambiar nombre", "Eliminar dispositivo")
 
         AlertDialog.Builder(requireContext())
             .setTitle(nombre)
             .setItems(opciones) { _, which ->
                 when (which) {
                     0 -> mostrarDialogoConfigurar(position)
-                    1 -> confirmarEliminar(position)
+                    1 -> mostrarDialogoEditarNombre(position)
+                    2 -> confirmarEliminar(position)
                 }
             }
             .show()
     }
+
+    // ========== NUEVO: DIÁLOGO PARA EDITAR NOMBRE ==========
+
+    private fun mostrarDialogoEditarNombre(position: Int) {
+        val nombreActual = listaTexto[position].substringBefore("\n")
+        val id = idsDispositivos[position]
+
+        val builder = AlertDialog.Builder(requireContext())
+        builder.setTitle("Cambiar nombre")
+
+        val input = EditText(requireContext())
+        input.setText(nombreActual)
+        input.setSelection(nombreActual.length)
+        input.setPadding(50, 40, 50, 40)
+
+        builder.setView(input)
+
+        builder.setPositiveButton("Actualizar") { _, _ ->
+            val nuevoNombre = input.text.toString().trim()
+            if (nuevoNombre.isEmpty()) {
+                Toast.makeText(requireContext(), "El nombre no puede estar vacío", Toast.LENGTH_SHORT).show()
+            } else {
+                actualizarNombreDispositivo(id, nuevoNombre)
+            }
+        }
+        builder.setNegativeButton("Cancelar", null)
+        builder.show()
+    }
+
+    private fun actualizarNombreDispositivo(id: Int, nuevoNombre: String) {
+        val url = ApiConfig.BASE_URL + "editar_dispositivo.php"
+
+        val request = object : StringRequest(
+            Method.POST, url,
+            { resp ->
+                try {
+                    val obj = JSONObject(resp)
+                    if (obj.optBoolean("success", false)) {
+                        Toast.makeText(requireContext(), "Nombre actualizado", Toast.LENGTH_SHORT).show()
+                        cargarDispositivos()
+                    } else {
+                        Toast.makeText(requireContext(), obj.optString("message", "Error"), Toast.LENGTH_SHORT).show()
+                    }
+                } catch (e: Exception) {
+                    Toast.makeText(requireContext(), "Error en el servidor", Toast.LENGTH_SHORT).show()
+                }
+            },
+            { error ->
+                Toast.makeText(requireContext(), "Error: ${error.message}", Toast.LENGTH_SHORT).show()
+            }
+        ) {
+            override fun getHeaders(): MutableMap<String, String> = Session.authHeaders(requireContext())
+            override fun getParams(): MutableMap<String, String> {
+                val params = HashMap<String, String>()
+                params["id_dispositivo"] = id.toString()
+                params["nombre_dispositivo"] = nuevoNombre
+                return params
+            }
+        }
+        Volley.newRequestQueue(requireContext()).add(request)
+    }
+
+    // ========== RESTO DE FUNCIONES (SIN CAMBIOS) ==========
+
     private fun confirmarEliminar(position: Int) {
         val nombre = listaTexto[position].substringBefore("\n")
         val id = idsDispositivos[position]
@@ -160,40 +218,29 @@ class DispositivosFragment : Fragment() {
                         Toast.makeText(requireContext(), "Dispositivo eliminado", Toast.LENGTH_SHORT).show()
                         cargarDispositivos()
                     } else {
-                        Toast.makeText(
-                            requireContext(),
-                            obj.optString("message", "Error al eliminar"),
-                            Toast.LENGTH_SHORT
-                        ).show()
+                        Toast.makeText(requireContext(), obj.optString("message", "Error"), Toast.LENGTH_SHORT).show()
                     }
                 } catch (e: Exception) {
-                    Toast.makeText(requireContext(), "Respuesta inválida del servidor", Toast.LENGTH_SHORT).show()
+                    Toast.makeText(requireContext(), "Error en el servidor", Toast.LENGTH_SHORT).show()
                 }
             },
             { error ->
                 Toast.makeText(requireContext(), "Error: ${error.message}", Toast.LENGTH_SHORT).show()
             }
         ) {
-            override fun getHeaders(): MutableMap<String, String> {
-                return Session.authHeaders(requireContext())
-            }
-
+            override fun getHeaders(): MutableMap<String, String> = Session.authHeaders(requireContext())
             override fun getParams(): MutableMap<String, String> {
                 val params = HashMap<String, String>()
                 params["id_dispositivo"] = idDispositivo.toString()
                 return params
             }
         }
-
         Volley.newRequestQueue(requireContext()).add(request)
     }
-
-    // ========== DIALOGO PARA AGREGAR DISPOSITIVO (NOMBRE + LUGAR) ==========
 
     private fun mostrarDialogoAgregar() {
         val builder = AlertDialog.Builder(requireContext())
         builder.setTitle("Nuevo dispositivo")
-
         val v = layoutInflater.inflate(R.layout.dialog_nuevo_dispositivo, null)
         val edtNombre = v.findViewById<EditText>(R.id.edtNombreDispositivo)
         val edtLugar = v.findViewById<EditText>(R.id.edtLugarDispositivo)
@@ -202,12 +249,8 @@ class DispositivosFragment : Fragment() {
         builder.setPositiveButton("Guardar") { _, _ ->
             val nombre = edtNombre.text.toString().trim()
             val lugar = edtLugar.text.toString().trim()
-
-            if (nombre.isEmpty()) {
-                Toast.makeText(requireContext(), "Ingresa un nombre", Toast.LENGTH_SHORT).show()
-            } else {
-                crearDispositivo(nombre, lugar)
-            }
+            if (nombre.isEmpty()) Toast.makeText(requireContext(), "Ingresa un nombre", Toast.LENGTH_SHORT).show()
+            else crearDispositivo(nombre, lugar)
         }
         builder.setNegativeButton("Cancelar", null)
         builder.show()
@@ -215,87 +258,54 @@ class DispositivosFragment : Fragment() {
 
     private fun crearDispositivo(nombre: String, lugar: String) {
         val url = ApiConfig.BASE_URL + "crear_dispositivo.php"
-
         val json = JSONObject().apply {
             put("id_usuario", idUsuario)
             put("nombre_dispositivo", nombre)
             put("ubicacion", lugar)
         }
-
-        val request = object : JsonObjectRequest(
-            Request.Method.POST, url, json,
+        val request = object : JsonObjectRequest(Request.Method.POST, url, json,
             { response ->
                 if (response.optBoolean("success", false)) {
                     Toast.makeText(requireContext(), "Dispositivo creado", Toast.LENGTH_SHORT).show()
                     cargarDispositivos()
                 } else {
-                    Toast.makeText(
-                        requireContext(),
-                        response.optString("message", "Error"),
-                        Toast.LENGTH_SHORT
-                    ).show()
+                    Toast.makeText(requireContext(), response.optString("message", "Error"), Toast.LENGTH_SHORT).show()
                 }
             },
-            { error ->
-                Toast.makeText(requireContext(), "Error: ${error.message}", Toast.LENGTH_SHORT).show()
-            }
+            { error -> Toast.makeText(requireContext(), "Error: ${error.message}", Toast.LENGTH_SHORT).show() }
         ) {
-            override fun getHeaders(): MutableMap<String, String> {
-                return Session.authHeaders(requireContext())
-            }
+            override fun getHeaders(): MutableMap<String, String> = Session.authHeaders(requireContext())
         }
-
         Volley.newRequestQueue(requireContext()).add(request)
     }
 
-    // ========== DIALOGO PARA CONFIGURAR ESP32 (SSID + PASSWORD) ==========
-
-
     private fun mostrarDialogoConfigurar(position: Int) {
-        if (position !in tokensDispositivos.indices) {
-            Toast.makeText(requireContext(), "Datos del dispositivo inválidos", Toast.LENGTH_SHORT).show()
-            return
-        }
-
+        if (position !in tokensDispositivos.indices) return
         val token = tokensDispositivos[position]
-
         val builder = AlertDialog.Builder(requireContext())
         builder.setTitle("Configurar dispositivo")
-
         val v = layoutInflater.inflate(R.layout.dialog_config_dispositivo, null)
         val edtSsid = v.findViewById<EditText>(R.id.edtSsidConfig)
         val edtPass = v.findViewById<EditText>(R.id.edtPassConfig)
         val txtInfo  = v.findViewById<TextView>(R.id.txtInfoToken)
-
         txtInfo.text = getString(R.string.instrucciones_configuracion_esp32, token)
 
         builder.setView(v)
         builder.setPositiveButton("Enviar config") { _, _ ->
             val ssid = edtSsid.text.toString().trim()
             val pass = edtPass.text.toString().trim()
-
-            if (ssid.isEmpty()) {
-                Toast.makeText(requireContext(), "Ingresa el SSID de la red", Toast.LENGTH_SHORT).show()
-            } else {
-                enviarConfigAESP32(token, ssid, pass)
-            }
+            if (ssid.isEmpty()) Toast.makeText(requireContext(), "Ingresa el SSID", Toast.LENGTH_SHORT).show()
+            else enviarConfigAESP32(token, ssid, pass)
         }
         builder.setNegativeButton("Cancelar", null)
         builder.show()
     }
 
     private fun enviarConfigAESP32(token: String, ssid: String, pass: String) {
-        // IMPORTANTE: el celular debe estar conectado a la WiFi del ESP32 (SensorAire-ESP32)
         val url = "http://192.168.4.1/config"
-
-        val request = object : StringRequest(
-            Method.POST, url,
-            {
-                Toast.makeText(requireContext(), "Config enviada a ESP32", Toast.LENGTH_SHORT).show()
-            },
-            { error ->
-                Toast.makeText(requireContext(), "Error al enviar config: ${error.message}", Toast.LENGTH_LONG).show()
-            }
+        val request = object : StringRequest(Method.POST, url,
+            { Toast.makeText(requireContext(), "Config enviada a ESP32", Toast.LENGTH_SHORT).show() },
+            { error -> Toast.makeText(requireContext(), "Error al enviar: ${error.message}", Toast.LENGTH_LONG).show() }
         ) {
             override fun getParams(): MutableMap<String, String> {
                 val params = HashMap<String, String>()
@@ -306,7 +316,6 @@ class DispositivosFragment : Fragment() {
                 return params
             }
         }
-
         Volley.newRequestQueue(requireContext()).add(request)
     }
 }

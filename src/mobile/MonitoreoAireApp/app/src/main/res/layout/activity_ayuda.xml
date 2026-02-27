@@ -1,0 +1,84 @@
+<?xml version="1.0" encoding="utf-8"?>
+<androidx.coordinatorlayout.widget.CoordinatorLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:background="#F5F5F5">
+
+    <com.google.android.material.appbar.AppBarLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content">
+
+        <androidx.appcompat.widget.Toolbar
+            android:id="@+id/toolbarAyuda"
+            android:layout_width="match_parent"
+            android:layout_height="?attr/actionBarSize"
+            android:background="#01579B"
+            app:title="Guía de Interpretación"
+            app:titleTextColor="@android:color/white"
+            app:navigationIconTint="@android:color/white" />
+    </com.google.android.material.appbar.AppBarLayout>
+
+    <androidx.core.widget.NestedScrollView
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        app:layout_behavior="@string/appbar_scrolling_view_behavior">
+
+        <LinearLayout
+            android:orientation="vertical"
+            android:padding="20dp"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content">
+
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="1. Dióxido de Carbono (CO₂)"
+                android:textStyle="bold"
+                android:textColor="#B71C1C"
+                android:textSize="18sp"/>
+            <TextView
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="8dp"
+                android:text="Basado en la Norma ASHRAE 62.1-2022:\n\n• Menos de 800 ppm: Aire excelente y renovado.\n• 800 - 1000 ppm: Nivel de alerta, se sugiere ventilación.\n• Más de 1000 ppm: Aire viciado y riesgo biológico (OMS)."
+                android:textColor="#333333"
+                android:lineSpacingExtra="4dp"/>
+
+            <View android:layout_width="match_parent" android:layout_height="1dp" android:background="#DDD" android:layout_marginVertical="16dp"/>
+
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="2. Confort Térmico (ISO 7730)"
+                android:textStyle="bold"
+                android:textColor="#1565C0"
+                android:textSize="18sp"/>
+            <TextView
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="8dp"
+                android:text="• Temperatura: El rango óptimo es de 20°C a 26°C.\n• Humedad: Debe mantenerse entre 30% y 60% para evitar sequedad respiratoria o proliferación de moho."
+                android:textColor="#333333"
+                android:lineSpacingExtra="4dp"/>
+
+            <View android:layout_width="match_parent" android:layout_height="1dp" android:background="#DDD" android:layout_marginVertical="16dp"/>
+
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="3. Índice de Calidad (ICA)"
+                android:textStyle="bold"
+                android:textColor="#2E7D32"
+                android:textSize="18sp"/>
+            <TextView
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="8dp"
+                android:text="Métrica adaptada de los estándares de salud ocupacional:\n\n• 85 - 100: Excelente.\n• 70 - 84: Buena.\n• Menos de 50: Crítica (Posible Síndrome del Edificio Enfermo)."
+                android:textColor="#333333"
+                android:lineSpacingExtra="4dp"/>
+
+        </LinearLayout>
+    </androidx.core.widget.NestedScrollView>
+</androidx.coordinatorlayout.widget.CoordinatorLayout>

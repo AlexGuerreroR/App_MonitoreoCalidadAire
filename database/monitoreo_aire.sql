@@ -3,7 +3,7 @@
 -- https://www.phpmyadmin.net/
 --
 -- Servidor: 127.0.0.1
--- Tiempo de generación: 04-02-2026 a las 03:08:08
+-- Tiempo de generación: 26-02-2026 a las 08:15:08
 -- Versión del servidor: 10.4.32-MariaDB
 -- Versión de PHP: 8.0.30
 
@@ -49,7 +49,8 @@ CREATE TABLE `eventos` (
   `valor` decimal(10,2) NOT NULL,
   `umbral` decimal(10,2) NOT NULL,
   `mensaje` varchar(255) DEFAULT NULL,
-  `fecha_hora` datetime NOT NULL DEFAULT current_timestamp()
+  `fecha_hora` datetime NOT NULL DEFAULT current_timestamp(),
+  `nivel` enum('EVENTO','ALARMA','PELIGRO') NOT NULL DEFAULT 'EVENTO'
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
 
 -- --------------------------------------------------------
@@ -88,6 +89,18 @@ CREATE TABLE `lecturas_actuales` (
 -- --------------------------------------------------------
 
 --
+-- Estructura de tabla para la tabla `tracking_alarmas`
+--
+
+CREATE TABLE `tracking_alarmas` (
+  `id_dispositivo` int(11) NOT NULL,
+  `parametro` varchar(20) NOT NULL,
+  `inicio_exceso` datetime DEFAULT NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
+
+-- --------------------------------------------------------
+
+--
 -- Estructura de tabla para la tabla `umbrales`
 --
 
@@ -113,7 +126,8 @@ CREATE TABLE `usuarios` (
   `respuesta_seguridad` varchar(255) NOT NULL,
   `fecha_registro` datetime DEFAULT current_timestamp(),
   `rol` enum('ADMIN','SUPERVISOR','TECNICO') NOT NULL DEFAULT 'SUPERVISOR',
-  `api_token` varchar(64) DEFAULT NULL
+  `api_token` varchar(64) DEFAULT NULL,
+  `id_admin_creador` int(11) DEFAULT NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
 
 --
@@ -149,11 +163,18 @@ ALTER TABLE `lecturas_actuales`
   ADD PRIMARY KEY (`id_dispositivo`);
 
 --
+-- Indices de la tabla `tracking_alarmas`
+--
+ALTER TABLE `tracking_alarmas`
+  ADD PRIMARY KEY (`id_dispositivo`,`parametro`);
+
+--
 -- Indices de la tabla `umbrales`
 --
 ALTER TABLE `umbrales`
   ADD PRIMARY KEY (`id`),
-  ADD UNIQUE KEY `uq_umbrales_dispositivo_parametro` (`id_dispositivo`,`parametro`);
+  ADD UNIQUE KEY `uq_umbrales_dispositivo_parametro` (`id_dispositivo`,`parametro`),
+  ADD UNIQUE KEY `uq_umbral` (`id_dispositivo`,`parametro`);
 
 --
 -- Indices de la tabla `usuarios`
