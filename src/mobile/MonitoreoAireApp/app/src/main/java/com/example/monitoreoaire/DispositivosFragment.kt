@@ -267,7 +267,7 @@ class DispositivosFragment : Fragment() {
         val edtPass = v.findViewById<EditText>(R.id.edtPassConfig)
         val txtInfo  = v.findViewById<TextView>(R.id.txtInfoToken)
 
-        txtInfo.text = getString(R.string.instrucciones_configuracion_esp32, token)
+        txtInfo.text = getString(R.string.instrucciones_configuracion_esp32)
 
         builder.setView(v)
         builder.setPositiveButton("Enviar config") { _, _ ->
