@@ -1,4 +1,4 @@
 <resources>
     <string name="app_name">MonitoreoAireApp</string>
-    <string name="instrucciones_configuracion_esp32">Token del dispositivo (usado internamente):\n%1$s\n1. Conéctese a la red wifi SensorAire-ESP32.\n2. Ingrese aquí las credenciales de su red</string>
+    <string name="instrucciones_configuracion_esp32">1. Conéctese a la red wifi SensorAire-ESP32.\n2. Ingrese aquí las credenciales de su red.</string>
 </resources>

@@ -1,20 +1,14 @@
 package com.example.monitoreoaire
 
 import android.content.Context
-import org.eclipse.paho.client.mqttv3.IMqttActionListener
-import org.eclipse.paho.client.mqttv3.IMqttDeliveryToken
-import org.eclipse.paho.client.mqttv3.IMqttToken
-import org.eclipse.paho.client.mqttv3.MqttAsyncClient
-import org.eclipse.paho.client.mqttv3.MqttCallbackExtended
-import org.eclipse.paho.client.mqttv3.MqttConnectOptions
-import org.eclipse.paho.client.mqttv3.MqttMessage
+import org.eclipse.paho.client.mqttv3.*
 import org.eclipse.paho.client.mqttv3.persist.MemoryPersistence
 import java.util.UUID
 
 object MqttManager {
 
     private var client: MqttAsyncClient? = null
-    private var currentTopic: String? = null
+    private val subscribedTopics = mutableSetOf<String>()
     private var onMessage: ((String) -> Unit)? = null
 
     fun setOnMessageListener(listener: (String) -> Unit) {
@@ -30,17 +24,21 @@ object MqttManager {
 
         c.setCallback(object : MqttCallbackExtended {
             override fun connectComplete(reconnect: Boolean, serverURI: String?) {
-                val t = currentTopic ?: return
-                try {
-                    c.subscribe(t, 0)
-                } catch (_: Exception) { }
+                subscribedTopics.forEach { topic ->
+                    try {
+                        c.subscribe(topic, 0)
+                    } catch (_: Exception) { }
+                }
             }
 
             override fun connectionLost(cause: Throwable?) { }
 
             override fun messageArrived(topic: String?, message: MqttMessage?) {
-                val payload = message?.payload?.toString(Charsets.UTF_8) ?: return
-                onMessage?.invoke(payload)
+                // Solo procesamos si el tópico está en nuestra lista actual de interés
+                if (subscribedTopics.contains(topic)) {
+                    val payload = message?.payload?.toString(Charsets.UTF_8) ?: return
+                    onMessage?.invoke(payload)
+                }
             }
 
             override fun deliveryComplete(token: IMqttDeliveryToken?) { }
@@ -54,27 +52,44 @@ object MqttManager {
         }
 
         try {
-            c.connect(options, null, object : IMqttActionListener {
-                override fun onSuccess(asyncActionToken: IMqttToken?) { }
-                override fun onFailure(asyncActionToken: IMqttToken?, exception: Throwable?) { }
-            })
+            c.connect(options, null, null)
         } catch (_: Exception) { }
+    }
+
+    fun clearAllSubscriptions() {
+        val c = client ?: return
+        subscribedTopics.forEach { topic ->
+            try {
+                if (c.isConnected) c.unsubscribe(topic)
+            } catch (_: Exception) { }
+        }
+        subscribedTopics.clear()
     }
 
     fun subscribeToDevice(tokenDevice: String) {
         val c = client ?: return
         val topic = MqttConfig.TOPIC_PREFIX + tokenDevice
 
-        if (currentTopic == topic) return
+        if (subscribedTopics.contains(topic)) return
+
+        subscribedTopics.add(topic)
 
         try {
-            currentTopic?.let { if (c.isConnected) c.unsubscribe(it) }
+            if (c.isConnected) {
+                c.subscribe(topic, 0)
+            }
         } catch (_: Exception) { }
+    }
 
-        currentTopic = topic
+    fun unsubscribeFromDevice(tokenDevice: String) {
+        val c = client ?: return
+        val topic = MqttConfig.TOPIC_PREFIX + tokenDevice
 
         try {
-            if (c.isConnected) c.subscribe(topic, 0)
+            if (c.isConnected && subscribedTopics.contains(topic)) {
+                c.unsubscribe(topic)
+            }
+            subscribedTopics.remove(topic)
         } catch (_: Exception) { }
     }
 }

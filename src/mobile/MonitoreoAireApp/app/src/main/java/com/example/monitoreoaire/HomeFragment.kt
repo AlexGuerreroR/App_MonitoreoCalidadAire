@@ -1,5 +1,6 @@
 package com.example.monitoreoaire
 
+import android.content.Intent // ESTA ES VITAL
 import android.content.Context
 import android.graphics.Color
 import android.os.Bundle
@@ -15,11 +16,11 @@ import android.widget.Spinner
 import android.widget.TextView
 import androidx.cardview.widget.CardView
 import androidx.fragment.app.Fragment
-import com.android.volley.DefaultRetryPolicy
 import com.android.volley.Request
 import com.android.volley.RequestQueue
 import com.android.volley.toolbox.JsonArrayRequest
 import com.android.volley.toolbox.Volley
+import com.google.android.material.floatingactionbutton.FloatingActionButton
 import org.json.JSONObject
 import java.text.SimpleDateFormat
 import java.util.Date
@@ -29,6 +30,7 @@ import kotlin.math.roundToInt
 class HomeFragment : Fragment() {
 
     private lateinit var spDispositivos: Spinner
+    private lateinit var btnAyuda: FloatingActionButton // NUEVO
     private val nombresDispositivos = ArrayList<String>()
     private val idsDispositivos = ArrayList<Int>()
     private val tokensDispositivos = ArrayList<String>()
@@ -73,6 +75,7 @@ class HomeFragment : Fragment() {
                 val obj = JSONObject(payload)
                 val tokenMsg = obj.optString("token", "")
                 val tokenSel = selectedToken ?: ""
+
                 if (tokenSel.isNotEmpty() && tokenMsg.isNotEmpty() && tokenMsg != tokenSel) return@setOnMessageListener
 
                 val co2 = obj.optDouble("co2", 0.0)
@@ -93,6 +96,8 @@ class HomeFragment : Fragment() {
     override fun onCreateView(inflater: LayoutInflater, container: ViewGroup?, savedInstanceState: Bundle?): View {
         val v = inflater.inflate(R.layout.fragment_home, container, false)
         spDispositivos = v.findViewById(R.id.spDispositivosHome)
+        btnAyuda = v.findViewById(R.id.btnAyudaHome) // NUEVO
+
         viewCircleEstado = v.findViewById(R.id.viewCircleEstado)
         txtEstado = v.findViewById(R.id.txtEstado)
         txtEstado.textAlignment = View.TEXT_ALIGNMENT_CENTER
@@ -110,20 +115,33 @@ class HomeFragment : Fragment() {
         txtRiesgoSee = v.findViewById(R.id.txtRiesgoSee)
         txtRecomendacion = v.findViewById(R.id.txtRecomendacion)
 
+        // Lógica para abrir la nueva pantalla de Ayuda
+        btnAyuda.setOnClickListener {
+            val intent = Intent(requireContext(), AyudaActivity::class.java)
+            startActivity(intent)
+        }
+
         ponerEstadoEsperando()
         cargarDispositivos()
 
         spDispositivos.onItemSelectedListener = object : AdapterView.OnItemSelectedListener {
             override fun onItemSelected(p: AdapterView<*>?, v: View?, pos: Int, id: Long) {
                 if (pos !in tokensDispositivos.indices) return
+
+                MqttManager.clearAllSubscriptions()
+
                 val idSel = idsDispositivos[pos]
                 (activity as? HomeActivity)?.setDispositivoSeleccionado(idSel)
                 selectedToken = tokensDispositivos[pos]
                 lastMqttAt = 0L
+
                 ponerEstadoEsperando()
+
                 selectedToken?.let { if (it.isNotEmpty()) MqttManager.subscribeToDevice(it) }
             }
-            override fun onNothingSelected(p: AdapterView<*>?) { (activity as? HomeActivity)?.setDispositivoSeleccionado(0) }
+            override fun onNothingSelected(p: AdapterView<*>?) {
+                (activity as? HomeActivity)?.setDispositivoSeleccionado(0)
+            }
         }
         return v
     }
@@ -184,8 +202,10 @@ class HomeFragment : Fragment() {
             val adapter = ArrayAdapter(requireContext(), android.R.layout.simple_spinner_item, nombresDispositivos)
             adapter.setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item)
             spDispositivos.adapter = adapter
+
             if (idsDispositivos.isNotEmpty()) {
                 (activity as? HomeActivity)?.setDispositivoSeleccionado(idsDispositivos[0])
+                MqttManager.clearAllSubscriptions()
                 selectedToken = tokensDispositivos[0]
                 selectedToken?.let { if (it.isNotEmpty()) MqttManager.subscribeToDevice(it) }
             }
@@ -193,7 +213,6 @@ class HomeFragment : Fragment() {
         requestQueue.add(request)
     }
 
-    // LÓGICA DE DASHBOARD SUSTENTADA (ISO 7730 / ASHRAE 62.1)
     private fun actualizarDashboard(co2: Double, temp: Double, hum: Double, fecha: String, indiceReal: Int) {
         txtCO2.text = "${co2.roundToInt()} ppm"
         txtTemp.text = formatearTempConUnidad(temp)
@@ -201,7 +220,6 @@ class HomeFragment : Fragment() {
         txtUltimaLectura.text = "Lectura: $fecha"
         txtIndiceCalidad.text = "$indiceReal / 100"
 
-        // Niveles de Calidad de Aire (IAQ)
         val (nivel, bgRes) = when {
             indiceReal >= 85 -> "Excelente" to R.drawable.bg_circle_good
             indiceReal >= 70 -> "Buena" to R.drawable.bg_circle_good
@@ -212,7 +230,6 @@ class HomeFragment : Fragment() {
         txtIndiceNivel.text = nivel
         viewCircleEstado.setBackgroundResource(bgRes)
 
-        // Confort Térmico e Higrometría
         txtTempConfort.text = when {
             temp < 20 -> "Frío"
             temp <= 26 -> "Confortable"
@@ -251,20 +268,13 @@ class HomeFragment : Fragment() {
 
     private fun generarRecomendacionTecnica(co2: Double, t: Double, h: Double): String {
         return when {
-            // Prioridad 1: Seguridad Respiratoria (CO2)
             co2 > 1500 -> "Crítico: Active ventilación forzada o evacue el área hasta renovar el aire."
             co2 > 1000 -> "Aire deficiente: Incremente la ventilación abriendo puertas y ventanas totalmente."
             co2 > 800 -> "Moderado: Realice una apertura parcial de ventanas para renovar el flujo de aire."
-
-            // Prioridad 2: Higrometría (Humedad) - Acciones Correctivas
             h > 70 -> "Humedad Crítica: Use deshumidificadores o aire acondicionado para reducir riesgo de moho."
             h < 30 -> "Humedad Muy Baja: Use un humidificador o coloque recipientes con agua para evitar sequedad."
-
-            // Prioridad 3: Confort Térmico (Temperatura)
             t > 30 -> "Calor Excesivo: Reduzca la carga térmica; use ventiladores o sistemas de refrigeración."
             t < 16 -> "Frío Intenso: Incremente la calefacción o mejore el aislamiento térmico del recinto."
-
-            // Estado Ideal
             else -> "Condiciones Óptimas: Calidad de aire estable. No se requieren acciones correctivas."
         }
     }

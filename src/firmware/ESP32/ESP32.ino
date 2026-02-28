@@ -240,10 +240,10 @@ String buildJson() {
 // ---------- PREFERENCIAS ----------
 void cargarConfig() {
   prefs.begin("config", true);
-  wifiSsid    = prefs.getString("ssid", "");
-  wifiPass    = prefs.getString("pass", "");
-  deviceToken = prefs.getString("token", "");
-  serverUrl   = prefs.getString("server", "");
+  wifiSsid     = prefs.getString("ssid", "");
+  wifiPass     = prefs.getString("pass", "");
+  deviceToken  = prefs.getString("token", "");
+  serverUrl    = prefs.getString("server", "");
   prefs.end();
 
   configurado = (wifiSsid.length() > 0) && (deviceToken.length() > 0) && (serverUrl.length() > 0);
@@ -316,7 +316,6 @@ void iniciarServidorHTTP() {
 void iniciarModoAP() {
   if (enModoAP) return;
   enModoAP = true;
-  WiFi.mode(WIFI_AP);
   WiFi.softAP(AP_SSID, AP_PASS);
   iniciarServidorHTTP();
   drawWelcome();
@@ -391,6 +390,7 @@ void mqttPublishTelemetry(const String& jsonData) {
   mqttClient.loop();
   if (!mqttClient.connected()) return;
 
+  // CAMBIO CLAVE: El tópico ahora incluye el token dinámico del dispositivo
   String topic = "monitoreoAire/telemetry/" + deviceToken;
   mqttClient.publish(topic.c_str(), jsonData.c_str());
 }
